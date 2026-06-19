@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Terminal Dark",
+  "description": "High-density technical pattern monitoring and trend analysis dashboard for casino drawing history and risk assessment.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
