@@ -150,7 +150,7 @@ const ZOOM_PRESETS = [100, 200, 400, 800, 1000];
 const CHART_MIN_WINDOW = 60;
 const CHART_MAX_WINDOW = 1000;
 const CHART_WIDTH = 1200;
-const CHART_HEIGHT = 280;
+const CHART_HEIGHT = 360;
 const ACTUAL_RATE_WINDOWS = [1000, 800, 400];
 const CHART_MISS_COLOR = "#22d3ee";
 const CHART_HIT_COLOR = "#E54B4B";
@@ -1172,7 +1172,7 @@ export default function App() {
 
               <div className="chart-stage-wrap p-4 bg-[#050505] relative">
                 <svg
-                  className="w-full h-[280px] overflow-visible cursor-crosshair z-20 relative"
+                  className="w-full h-[360px] overflow-visible cursor-crosshair z-20 relative"
                   onPointerDown={handleChartPointerDown}
                   onPointerEnter={(event) => setHovered(nearestChartPoint(event.clientX, event.currentTarget))}
                   onPointerMove={handleChartPointerMove}
@@ -1180,7 +1180,7 @@ export default function App() {
                   onPointerLeave={(event) => clearChartPointer(event, true)}
                   onPointerCancel={(event) => clearChartPointer(event, true)}
                   onWheel={handleChartWheel}
-                  viewBox="0 0 1200 280"
+                  viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
                   preserveAspectRatio="none"
                   style={{ touchAction: "none" }}
                 >
@@ -1188,7 +1188,7 @@ export default function App() {
                     x="0"
                     y="0"
                     width="1200"
-                    height="280"
+                    height={CHART_HEIGHT}
                     fill={zoneFill(chartZone.key)}
                     opacity="0.08"
                   />
@@ -1224,7 +1224,7 @@ export default function App() {
                   </defs>
                   {pathD ? (
                     <>
-                      <path d={`${pathD} L 1200 280 L 0 280 Z`} fill="url(#pc28ChartGradient)" />
+                      <path d={`${pathD} L ${CHART_WIDTH} ${CHART_HEIGHT} L 0 ${CHART_HEIGHT} Z`} fill="url(#pc28ChartGradient)" />
                     </>
                   ) : null}
                   {chartSegments.map((segment) => (
@@ -1292,7 +1292,7 @@ export default function App() {
                   ))}
                   {hovered ? (
                     <>
-                      <line x1={hovered.x} y1="0" x2={hovered.x} y2="280" stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" />
+                      <line x1={hovered.x} y1="0" x2={hovered.x} y2={CHART_HEIGHT} stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" />
                       <line x1="0" y1={hovered.y} x2="1200" y2={hovered.y} stroke="#ffffff" strokeWidth="0.8" strokeDasharray="3 3" opacity="0.55" />
                       <circle cx={hovered.x} cy={hovered.y} r="6" fill={hovered.isStraight ? CHART_HIT_COLOR : CHART_MISS_COLOR} opacity="0.88" />
                     </>
