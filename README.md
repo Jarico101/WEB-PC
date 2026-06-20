@@ -1,20 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
-
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/278e7ade-4866-4f5f-9e26-e8a6f587213e
+# WEB-PC Static Frontend
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+   ```sh
+   npm install
+   ```
+
+2. Configure the PC28 API base if needed:
+
+   ```sh
+   cp .env.example .env.local
+   ```
+
+   The static frontend reads `VITE_PC28_API_BASE` and requests:
+
+   ```text
+   ${VITE_PC28_API_BASE}/api/ai-signal
+   ```
+
+   If no local value is provided, it defaults to `http://66.42.54.206:3001`.
+
+3. Start Vite:
+
+   ```sh
+   npm run dev
+   ```
+
+## Build
+
+```sh
+npm run lint
+npm run build
+```
+
+The production output is written to `dist/` and can be served by any static host.

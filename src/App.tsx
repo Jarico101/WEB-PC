@@ -142,7 +142,9 @@ type ChartSignal = {
   riskShare: number;
 };
 
-const API_URL = "/api/pc28-signal";
+const DEFAULT_PC28_API_BASE = "http://66.42.54.206:3001";
+const PC28_API_BASE = (import.meta.env.VITE_PC28_API_BASE || DEFAULT_PC28_API_BASE).replace(/\/+$/, "");
+const API_URL = `${PC28_API_BASE}/api/ai-signal`;
 const REFRESH_MS = 10000;
 const CHART_HIT_LIFT = 17;
 const CHART_MISS_STEP = 1;
