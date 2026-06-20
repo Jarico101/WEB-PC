@@ -5,9 +5,11 @@ type ApiResponse = {
   };
 };
 
+const PC28_SIGNAL_URL = process.env.PC28_SIGNAL_URL || "https://pc28-ai-board-gray.vercel.app/api/ai-signal";
+
 export default async function handler(_req: unknown, res: ApiResponse) {
   try {
-    const response = await fetch("https://ctfdigital.lat/api/ai-signal", {
+    const response = await fetch(PC28_SIGNAL_URL, {
       headers: {
         Accept: "application/json",
         "Cache-Control": "no-cache",

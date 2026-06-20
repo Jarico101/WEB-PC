@@ -8,6 +8,7 @@ import { GoogleGenAI } from "@google/genai";
 dotenv.config();
 
 let aiClient: GoogleGenAI | null = null;
+const PC28_SIGNAL_URL = process.env.PC28_SIGNAL_URL || "https://pc28-ai-board-gray.vercel.app/api/ai-signal";
 
 function getGeminiClient(): GoogleGenAI {
   if (!aiClient) {
@@ -41,7 +42,7 @@ async function startServer() {
 
   app.get("/api/pc28-signal", async (req: express.Request, res: express.Response) => {
     try {
-      const response = await fetch("https://ctfdigital.lat/api/ai-signal", {
+      const response = await fetch(PC28_SIGNAL_URL, {
         headers: {
           "Accept": "application/json",
           "Cache-Control": "no-cache",
