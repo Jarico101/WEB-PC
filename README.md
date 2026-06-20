@@ -22,7 +22,7 @@
    ${VITE_PC28_API_BASE}/api/ai-signal
    ```
 
-   If no local value is provided, it defaults to `http://66.42.54.206:3001`.
+   If no local value is provided, it defaults to `https://api.startpops.xyz`.
 
 3. Start Vite:
 

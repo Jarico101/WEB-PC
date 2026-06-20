@@ -142,7 +142,7 @@ type ChartSignal = {
   riskShare: number;
 };
 
-const DEFAULT_PC28_API_BASE = "http://66.42.54.206:3001";
+const DEFAULT_PC28_API_BASE = "https://api.startpops.xyz";
 const PC28_API_BASE = (import.meta.env.VITE_PC28_API_BASE || DEFAULT_PC28_API_BASE).replace(/\/+$/, "");
 const API_URL = `${PC28_API_BASE}/api/ai-signal`;
 const REFRESH_MS = 10000;
