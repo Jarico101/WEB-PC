@@ -150,7 +150,7 @@ const ZOOM_PRESETS = [100, 200, 400, 800, 1000];
 const CHART_MIN_WINDOW = 60;
 const CHART_MAX_WINDOW = 1000;
 const CHART_WIDTH = 1200;
-const CHART_HEIGHT = 360;
+const CHART_HEIGHT = 468;
 const ACTUAL_RATE_WINDOWS = [1000, 800, 400];
 const CHART_MISS_COLOR = "#22d3ee";
 const CHART_HIT_COLOR = "#E54B4B";
@@ -1172,7 +1172,7 @@ export default function App() {
 
               <div className="chart-stage-wrap p-4 bg-[#050505] relative">
                 <svg
-                  className="w-full h-[360px] overflow-visible cursor-crosshair z-20 relative"
+                  className="w-full h-[468px] overflow-visible cursor-crosshair z-20 relative"
                   onPointerDown={handleChartPointerDown}
                   onPointerEnter={(event) => setHovered(nearestChartPoint(event.clientX, event.currentTarget))}
                   onPointerMove={handleChartPointerMove}
