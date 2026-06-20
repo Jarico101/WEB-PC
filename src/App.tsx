@@ -150,13 +150,17 @@ const ZOOM_PRESETS = [100, 200, 400, 800, 1000];
 const CHART_MIN_WINDOW = 60;
 const CHART_MAX_WINDOW = 1000;
 const CHART_WIDTH = 1200;
-const CHART_HEIGHT = 468;
+const CHART_HEIGHT = 400;
 const ACTUAL_RATE_WINDOWS = [1000, 800, 400];
 const CHART_MISS_COLOR = "#22d3ee";
 const CHART_HIT_COLOR = "#E54B4B";
 
 function formatPercent(value: number | undefined, digits = 1) {
   return `${(Number(value || 0) * 100).toFixed(digits)}%`;
+}
+
+function percentBarWidth(value: number | undefined) {
+  return `${Math.min(100, Math.max(0, Number(value || 0) * 100))}%`;
 }
 
 function formatTime(value?: string) {
@@ -200,6 +204,9 @@ function formatIssue(issue?: string) {
 }
 
 function eventText(draw?: Draw) {
+  if (!draw) {
+    return "--";
+  }
   return draw?.is_straight ? "出顺：客户输" : "未出：客户赢";
 }
 
@@ -516,12 +523,12 @@ function MetricCard({
   );
 }
 
-function HistoryTable({ results }: { results: Draw[] }) {
+function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number }) {
   return (
     <div className="history-shell bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm overflow-hidden">
       <div className="bg-[#0f0f0f] border-b border-[#1a1a1a] px-4 py-2.5 flex justify-between items-center">
         <span className="text-xs font-bold uppercase tracking-wider text-white font-sans">历史开奖 HISTORY</span>
-        <span className="text-[10px] text-[#888]">最近 20 期</span>
+        <span className="text-[10px] text-[#888]">最近 {limit} 期</span>
       </div>
       <div className="history-table-view overflow-x-auto text-xs select-none">
         <table className="w-full min-w-[680px] text-left">
@@ -533,7 +540,7 @@ function HistoryTable({ results }: { results: Draw[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1a1a1a]">
-            {results.slice(0, 20).map((item, index) => (
+            {results.slice(0, limit).map((item, index) => (
               <tr key={item.issue} className={`${index % 2 === 0 ? "bg-[#0a0a0a]" : "bg-[#070707]"} hover:bg-[#151515]`}>
                 <td className="p-2 pl-4 font-mono text-white text-[11px]">{formatIssue(item.issue)}</td>
                 <td className="p-2">
@@ -555,7 +562,7 @@ function HistoryTable({ results }: { results: Draw[] }) {
         </table>
       </div>
       <div className="history-mobile-list">
-        {results.slice(0, 20).map((item) => (
+        {results.slice(0, limit).map((item) => (
           <div key={item.issue} className="history-mobile-item">
             <div className="history-mobile-head">
               <span>{formatIssue(item.issue)}</span>
@@ -773,6 +780,7 @@ export default function App() {
   const baseStraightProbability = feature?.probability.straight_probability || 0;
   const conditionalStraightProbability = conditional?.straight_probability || 0;
   const aftershock = feature?.aftershock;
+  const historySampleSize = feature?.pressure_series?.length || historyCount;
   const straightForecastBase =
     prediction?.targets?.straight?.backtest_next_hit_rate ??
     conditional?.straight_probability ??
@@ -798,6 +806,40 @@ export default function App() {
     }
   ];
   const actualStraightRates = ACTUAL_RATE_WINDOWS.map((windowSize) => straightRateForWindow(feature?.pressure_series || [], windowSize));
+  const missDelta = currentMiss - avgGap;
+  const statsCoreCells = [
+    { label: "总样本", value: historyCount || "--", helper: "history count" },
+    { label: "当前遗漏", value: `${currentMiss}期`, helper: `平均 ${avgGap.toFixed(1)}`, hot: currentMiss >= avgGap && avgGap > 0 },
+    { label: "历史最大", value: `${maxGap}期`, helper: `当前 ${Math.round(pressureRatioMax * 100)}%`, hot: currentMiss >= maxGap * 0.8 && maxGap > 0 },
+    { label: "偏离平均", value: `${missDelta >= 0 ? "+" : ""}${missDelta.toFixed(1)}`, helper: "当前 - 平均", hot: missDelta > 0 },
+    { label: "理论遗漏", value: theoreticalMiss === "--" ? "--" : `${theoreticalMiss}期`, helper: formatPercent(baseStraightProbability) },
+    { label: "条件样本", value: conditional?.observed || 0, helper: `出顺 ${conditional?.straight_count || 0}` }
+  ];
+  const statsRateRows = [
+    {
+      label: "近50期出顺",
+      rate: feature?.recent_density.recent_50_rate || 0,
+      count: feature?.recent_density.recent_50_straight_count || 0,
+      sample: Math.min(50, historySampleSize || 50)
+    },
+    {
+      label: "近100期出顺",
+      rate: feature?.recent_density.recent_100_rate || 0,
+      count: feature?.recent_density.recent_100_straight_count || 0,
+      sample: Math.min(100, historySampleSize || 100)
+    },
+    {
+      label: "条件出顺",
+      rate: conditionalStraightProbability,
+      count: conditional?.straight_count || 0,
+      sample: conditional?.observed || 0
+    }
+  ];
+  const statsTimeRows = [
+    { label: "最新开奖", value: formatDateTime(latest?.time || payload?.updated_at) },
+    { label: "本机时间", value: formatDateTime(localNow) },
+    { label: "接口同步", value: payload?.refresh_status || (error ? "ERROR" : "LIVE") }
+  ];
 
   const pageData = useMemo(() => {
     const series = feature?.pressure_series || [];
@@ -1071,8 +1113,8 @@ export default function App() {
           <MetricCard label="历史平均间隔" value={avgGap.toFixed(1)} suffix="期" footer={`完整历史口径 ${historyCount} 期`} />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-          <div className="xl:col-span-3 space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+          <div className="xl:col-span-3">
             <div className="chart-card bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm overflow-hidden">
               <div className="bg-[#0f0f0f] border-b border-[#1a1a1a] px-5 py-4 flex flex-wrap justify-between items-center gap-3">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -1172,7 +1214,7 @@ export default function App() {
 
               <div className="chart-stage-wrap p-4 bg-[#050505] relative">
                 <svg
-                  className="w-full h-[468px] overflow-visible cursor-crosshair z-20 relative"
+                  className="w-full h-[400px] overflow-visible cursor-crosshair z-20 relative"
                   onPointerDown={handleChartPointerDown}
                   onPointerEnter={(event) => setHovered(nearestChartPoint(event.clientX, event.currentTarget))}
                   onPointerMove={handleChartPointerMove}
@@ -1329,8 +1371,8 @@ export default function App() {
 
           </div>
 
-          <div className="space-y-4">
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-4">
+          <div className="insight-grid xl:col-span-2 space-y-4">
+            <div className="insight-card insight-pressure bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-4">
               <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
                 <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
                   <GaugeIcon className="w-4 h-4 text-white" />
@@ -1377,125 +1419,125 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="text-[10px] text-[#777] font-mono border-t border-[#1a1a1a] pt-3 leading-relaxed">
+              <div className="pressure-note text-[10px] text-[#777] font-mono border-t border-[#1a1a1a] pt-3 leading-relaxed">
                 压力分只读取当前遗漏、历史平均间隔、历史最大遗漏、条件出顺率；走势图逐点背景沿用同一压力口径。
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
-              <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
-                  <Bot className="w-4 h-4 text-white" />
-                  机器人信号 BOT SIGNAL
-                </span>
-                <span className={`text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-sm border ${signalClass(signal?.next_signal)}`}>
-                  {signal?.signal_label || "--"}
-                </span>
+        <div className="below-chart-grid">
+          <div className="insight-card insight-strategy bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
+            <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-white" />
+                策略参考 STRATEGY REF
+              </span>
+              <span className={`text-[9px] font-bold ${zoneTextClass(zone.key)}`}>{zone.label}</span>
+            </div>
+            <div className="text-[11px] leading-relaxed text-zinc-300 font-mono space-y-3">
+              <div className="bg-[#050505] border border-[#1a1a1a] rounded-sm p-3">
+                短线信号：{signal?.signal_label || "--"} / 压力 {pressureScore}/100。{signal?.reason || "--"}
               </div>
-
-              <div className="robot-signal-shell">
-                <div className={`robot-data-strip robot-data-strip-strong ${robotBiasBgClass(robotBias)}`}>
-                  <span>RAW JUDGMENT</span>
-                  <strong className={robotBiasClass(robotBias)}>{robotBias}</strong>
-                  <em>score {prediction?.next_judgment?.score ?? "--"}</em>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="robot-stat-cell col-span-2 sm:col-span-1">
-                    <span>回测命中</span>
-                    <strong>{formatPercent(prediction?.next_judgment?.hit_rate)}</strong>
-                    <em>{prediction?.next_judgment?.hit_count || 0}/{prediction?.next_judgment?.sample_size || 0} samples</em>
+              <div className="strategy-grid strategy-probability-grid">
+                {forecastProbabilities.map((item) => (
+                  <div key={item.label} className={`strategy-metric-card strategy-probability-card ${item.emphasis ? "strategy-probability-hot" : ""}`}>
+                    <div className="strategy-probability-line">
+                      <span>{item.label}</span>
+                      <strong>{formatPercent(item.value)}</strong>
+                    </div>
+                    <em>{item.helper}</em>
                   </div>
-                  <div className={`robot-stat-cell col-span-2 sm:col-span-1 ${zoneBgClass(zone.key)}`}>
-                    <span>风险信号</span>
-                    <strong className={zoneTextClass(zone.key)}>{signal?.signal_label || "--"}</strong>
-                    <em>{pressureScore}/100 pressure</em>
+                ))}
+              </div>
+              <div className="strategy-grid">
+                {actualStraightRates.map((item) => (
+                  <div key={item.windowSize} className="strategy-metric-card">
+                    <span>{item.windowSize}期实际出顺</span>
+                    <strong>{formatPercent(item.rate)}</strong>
+                    <em>{item.straightCount}/{item.sampleSize} draws</em>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="robot-target-card robot-target-straight">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="robot-target-label text-[#ff9e99]">
-                        <Target className="w-3.5 h-3.5" />
-                        机器人顺
-                      </span>
-                      <strong>{formatPercent(prediction?.targets?.straight?.backtest_next_hit_rate)}</strong>
-                    </div>
-                    <div className="robot-meter">
-                      <span style={{ width: `${Math.min(100, Number(prediction?.targets?.straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
-                    </div>
-                    <div className="robot-target-meta">
-                      score {prediction?.targets?.straight?.score ?? "--"} / sample {prediction?.targets?.straight?.sample_size ?? "--"}
-                    </div>
-                    <p>{prediction?.targets?.straight?.reason || "--"}</p>
-                  </div>
-
-                  <div className="robot-target-card robot-target-non-straight">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="robot-target-label text-amber-300">
-                        <Target className="w-3.5 h-3.5" />
-                        机器人非顺
-                      </span>
-                      <strong>{formatPercent(prediction?.targets?.non_straight?.backtest_next_hit_rate)}</strong>
-                    </div>
-                    <div className="robot-meter">
-                      <span style={{ width: `${Math.min(100, Number(prediction?.targets?.non_straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
-                    </div>
-                    <div className="robot-target-meta">
-                      score {prediction?.targets?.non_straight?.score ?? "--"} / sample {prediction?.targets?.non_straight?.sample_size ?? "--"}
-                    </div>
-                    <p>{prediction?.targets?.non_straight?.reason || "--"}</p>
-                  </div>
-                </div>
-
-                <div className="text-[10px] text-[#777] font-mono leading-relaxed border-t border-[#1a1a1a] pt-3">
-                  <span className={zoneTextClass(zone.key)}>{signal?.signal_label || "--"}</span>
-                  <span className="text-[#555]"> / </span>
-                  {signal?.reason || "--"}
-                </div>
+                ))}
+              </div>
+              <div className="text-zinc-500">
+                走势图背景按当前窗口聚合计算，只显示主信号色；窗口内分布：玩家优势 {zoneCounts.player} / 临界观察 {zoneCounts.watch} / 风险 {zoneCounts.risk}。
               </div>
             </div>
+          </div>
 
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
-              <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-white" />
-                  策略参考 STRATEGY REF
-                </span>
-                <span className={`text-[9px] font-bold ${zoneTextClass(zone.key)}`}>{zone.label}</span>
-              </div>
-              <div className="text-[11px] leading-relaxed text-zinc-300 font-mono space-y-3">
-                <div className="bg-[#050505] border border-[#1a1a1a] rounded-sm p-3">
-                  短线信号：{signal?.signal_label || "--"} / 压力 {pressureScore}/100。{signal?.reason || "--"}
-                </div>
-                <div className="strategy-grid strategy-probability-grid">
-                  {forecastProbabilities.map((item) => (
-                    <div key={item.label} className={`strategy-metric-card strategy-probability-card ${item.emphasis ? "strategy-probability-hot" : ""}`}>
-                      <div className="strategy-probability-line">
-                        <span>{item.label}</span>
-                        <strong>{formatPercent(item.value)}</strong>
-                      </div>
-                      <em>{item.helper}</em>
-                    </div>
-                  ))}
-                </div>
-                <div className="strategy-grid">
-                  {actualStraightRates.map((item) => (
-                    <div key={item.windowSize} className="strategy-metric-card">
-                      <span>{item.windowSize}期实际出顺</span>
-                      <strong>{formatPercent(item.rate)}</strong>
-                      <em>{item.straightCount}/{item.sampleSize} draws</em>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-zinc-500">
-                  走势图背景按当前窗口聚合计算，只显示主信号色；窗口内分布：玩家优势 {zoneCounts.player} / 临界观察 {zoneCounts.watch} / 风险 {zoneCounts.risk}。
-                </div>
-              </div>
+          <div className="insight-card insight-bot bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
+            <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
+                <Bot className="w-4 h-4 text-white" />
+                机器人信号 BOT SIGNAL
+              </span>
+              <span className={`text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-sm border ${signalClass(signal?.next_signal)}`}>
+                {signal?.signal_label || "--"}
+              </span>
             </div>
 
-            <div className="robot-raw-panel bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4">
+            <div className="robot-signal-shell">
+              <div className={`robot-data-strip robot-data-strip-strong ${robotBiasBgClass(robotBias)}`}>
+                <span>RAW JUDGMENT</span>
+                <strong className={robotBiasClass(robotBias)}>{robotBias}</strong>
+                <em>score {prediction?.next_judgment?.score ?? "--"}</em>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="robot-stat-cell col-span-2 sm:col-span-1">
+                  <span>回测命中</span>
+                  <strong>{formatPercent(prediction?.next_judgment?.hit_rate)}</strong>
+                  <em>{prediction?.next_judgment?.hit_count || 0}/{prediction?.next_judgment?.sample_size || 0} samples</em>
+                </div>
+                <div className={`robot-stat-cell col-span-2 sm:col-span-1 ${zoneBgClass(zone.key)}`}>
+                  <span>风险信号</span>
+                  <strong className={zoneTextClass(zone.key)}>{signal?.signal_label || "--"}</strong>
+                  <em>{pressureScore}/100 pressure</em>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="robot-target-card robot-target-straight">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="robot-target-label text-[#ff9e99]">
+                      <Target className="w-3.5 h-3.5" />
+                      机器人顺
+                    </span>
+                    <strong>{formatPercent(prediction?.targets?.straight?.backtest_next_hit_rate)}</strong>
+                  </div>
+                  <div className="robot-meter">
+                    <span style={{ width: `${Math.min(100, Number(prediction?.targets?.straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
+                  </div>
+                  <div className="robot-target-meta">
+                    score {prediction?.targets?.straight?.score ?? "--"} / sample {prediction?.targets?.straight?.sample_size ?? "--"}
+                  </div>
+                  <p>{prediction?.targets?.straight?.reason || "--"}</p>
+                </div>
+
+                <div className="robot-target-card robot-target-non-straight">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="robot-target-label text-amber-300">
+                      <Target className="w-3.5 h-3.5" />
+                      机器人非顺
+                    </span>
+                    <strong>{formatPercent(prediction?.targets?.non_straight?.backtest_next_hit_rate)}</strong>
+                  </div>
+                  <div className="robot-meter">
+                    <span style={{ width: `${Math.min(100, Number(prediction?.targets?.non_straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
+                  </div>
+                  <div className="robot-target-meta">
+                    score {prediction?.targets?.non_straight?.score ?? "--"} / sample {prediction?.targets?.non_straight?.sample_size ?? "--"}
+                  </div>
+                  <p>{prediction?.targets?.non_straight?.reason || "--"}</p>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-[#777] font-mono leading-relaxed border-t border-[#1a1a1a] pt-3">
+                <span className={zoneTextClass(zone.key)}>{signal?.signal_label || "--"}</span>
+                <span className="text-[#555]"> / </span>
+                {signal?.reason || "--"}
+              </div>
+
               <div className="robot-raw-block">
                 <div className="text-white font-sans font-bold uppercase tracking-wider mb-1">原始机器人数据 RAW BOT DATA</div>
                 <div>偏向 {robotBias} / 原始分数 {prediction?.next_judgment?.score ?? "--"} / 命中 {prediction?.next_judgment?.hit_count || 0}/{prediction?.next_judgment?.sample_size || 0} / 回测 {formatPercent(prediction?.next_judgment?.hit_rate)}</div>
@@ -1503,26 +1545,65 @@ export default function App() {
                 <div>非顺 score {prediction?.targets?.non_straight?.score ?? "--"} sample {prediction?.targets?.non_straight?.sample_size ?? "--"} hit {formatPercent(prediction?.targets?.non_straight?.backtest_next_hit_rate)}</div>
               </div>
             </div>
+          </div>
 
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5 border-b border-[#1a1a1a] pb-2.5">
+          <div className="insight-card insight-stats bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
+            <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
                 <Database className="w-4 h-4 text-white" />
                 统计分析 STATS ANALYSIS
               </span>
-              {[
-                ["近50期出顺率", feature?.recent_density.recent_50_rate, feature?.recent_density.recent_50_straight_count],
-                ["近100期出顺率", feature?.recent_density.recent_100_rate, feature?.recent_density.recent_100_straight_count],
-                ["条件出顺率", conditional?.straight_probability, conditional?.straight_count]
-              ].map(([label, rate, count]) => (
-                <div key={String(label)} className="space-y-1">
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-zinc-300 font-sans">{label}</span>
-                    <span className="text-white font-bold">{formatPercent(Number(rate || 0))}</span>
+              <span className="text-[9px] text-[#888] font-sans uppercase tracking-wider">
+                {historySampleSize || 0} samples
+              </span>
+            </div>
+
+            <div className="stats-core-grid">
+              {statsCoreCells.map((item) => (
+                <div key={item.label} className={`stats-core-cell ${item.hot ? "stats-core-cell-hot" : ""}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <em>{item.helper}</em>
+                </div>
+              ))}
+            </div>
+
+            <div className="stats-section">
+              <div className="stats-section-title">近期密度</div>
+              <div className="stats-rate-stack">
+                {statsRateRows.map((item) => (
+                  <div key={item.label} className="stats-rate-row">
+                    <div className="stats-rate-head">
+                      <span>{item.label}</span>
+                      <strong>{formatPercent(item.rate)}</strong>
+                    </div>
+                    <div className="stats-rate-track">
+                      <div style={{ width: percentBarWidth(item.rate) }} />
+                    </div>
+                    <em>出顺 {item.count}/{item.sample || 0}</em>
                   </div>
-                  <div className="w-full bg-[#050505] h-2 rounded-sm border border-[#1a1a1a] overflow-hidden p-0.5">
-                    <div className="bg-white h-full rounded-sm transition-all duration-300" style={{ width: `${Math.min(100, Number(rate || 0) * 100)}%` }} />
+                ))}
+              </div>
+            </div>
+
+            <div className="stats-section">
+              <div className="stats-section-title">实际窗口</div>
+              <div className="stats-window-grid">
+                {actualStraightRates.map((item) => (
+                  <div key={item.windowSize} className="stats-window-cell">
+                    <span>{item.windowSize}期</span>
+                    <strong>{formatPercent(item.rate)}</strong>
+                    <em>{item.straightCount}/{item.sampleSize}</em>
                   </div>
-                  <div className="text-[9px] text-[#666]">出顺 {Number(count || 0)} 次</div>
+                ))}
+              </div>
+            </div>
+
+            <div className="stats-time-grid">
+              {statsTimeRows.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
                 </div>
               ))}
             </div>
