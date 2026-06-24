@@ -1,0 +1,1677 @@
+{
+  "action_space": "Discrete(113)",
+  "actions": [
+    {
+      "amount_bin": 0,
+      "direction_labels": [],
+      "directions": [],
+      "label": "WAIT_0",
+      "stake_amount": null,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd"
+      ],
+      "directions": [
+        35
+      ],
+      "label": "small_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "big_even"
+      ],
+      "directions": [
+        36
+      ],
+      "label": "big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_even"
+      ],
+      "directions": [
+        38
+      ],
+      "label": "small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "big_odd"
+      ],
+      "directions": [
+        37
+      ],
+      "label": "big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "big_even"
+      ],
+      "directions": [
+        35,
+        36
+      ],
+      "label": "small_odd+big_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        38
+      ],
+      "label": "small_odd+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        37
+      ],
+      "label": "small_odd+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        36,
+        38
+      ],
+      "label": "big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        37
+      ],
+      "label": "big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        38,
+        37
+      ],
+      "label": "small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "small_even"
+      ],
+      "directions": [
+        35,
+        36,
+        38
+      ],
+      "label": "small_odd+big_even+small_even",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "big_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        36,
+        37
+      ],
+      "label": "small_odd+big_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "small_odd",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        35,
+        38,
+        37
+      ],
+      "label": "small_odd+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    },
+    {
+      "amount_bin": 0,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": 30.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 1,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": 40.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 2,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": 50.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 3,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": 75.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 4,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": 100.0,
+      "stake_ratio": null
+    },
+    {
+      "amount_bin": 5,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.08
+    },
+    {
+      "amount_bin": 6,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.1
+    },
+    {
+      "amount_bin": 7,
+      "direction_labels": [
+        "big_even",
+        "small_even",
+        "big_odd"
+      ],
+      "directions": [
+        36,
+        38,
+        37
+      ],
+      "label": "big_even+small_even+big_odd",
+      "stake_amount": null,
+      "stake_ratio": 0.15
+    }
+  ],
+  "device": "cpu",
+  "feature_columns": [
+    "current_omission",
+    "pressure_score",
+    "cond_straight_rate",
+    "bot_win_rate",
+    "pressure_delta",
+    "omission_avg_ratio",
+    "window_density_100",
+    "relative_capital",
+    "wealth_ratio",
+    "max_drawdown",
+    "remaining_bet_ratio",
+    "bet_rate",
+    "loss_streak_ratio",
+    "period_ratio"
+  ],
+  "game_objective": {
+    "bet_limit_penalty": 20000.0,
+    "bet_rate_bonus": 0.0,
+    "completion_reward_multiplier": 1.0,
+    "enabled": true,
+    "fail_balance_multiplier": 0.7,
+    "fail_penalty": 1000.0,
+    "max_steps": 200,
+    "pass_balance_multiplier": 3.0,
+    "pass_reward": 1000.0,
+    "target_bet_rate": 0.22
+  },
+  "history_rows": 200,
+  "lookback_windows": [],
+  "model_path": "/Users/x/WEB-PC/ai_agent/models/dqn_wait_risk_cashout_30min_ladder_200_40k.zip",
+  "plays": {
+    "35": {
+      "gross_odds": 3.69,
+      "kind": "sum_combo",
+      "label": "small_odd",
+      "max_payout": 50000.0,
+      "target": "small_odd"
+    },
+    "36": {
+      "gross_odds": 3.69,
+      "kind": "sum_combo",
+      "label": "big_even",
+      "max_payout": 50000.0,
+      "target": "big_even"
+    },
+    "37": {
+      "gross_odds": 4.29,
+      "kind": "sum_combo",
+      "label": "big_odd",
+      "max_payout": 50000.0,
+      "target": "big_odd"
+    },
+    "38": {
+      "gross_odds": 4.29,
+      "kind": "sum_combo",
+      "label": "small_even",
+      "max_payout": 50000.0,
+      "target": "small_even"
+    }
+  },
+  "required_history_rows": 201,
+  "settings": {
+    "batch_size": 64,
+    "buffer_size": 100000,
+    "check_env": false,
+    "device": "auto",
+    "exploration_final_eps": 0.05,
+    "exploration_fraction": 0.5,
+    "exploration_initial_eps": 1.0,
+    "gamma": 0.99,
+    "gradient_steps": -1,
+    "initial_balance": 1000.0,
+    "learning_rate": 0.0001,
+    "learning_starts": 1000,
+    "lookback_windows": [],
+    "low_bet_rate_wait_penalty": 1.0,
+    "max_grad_norm": 10.0,
+    "max_stake": 100.0,
+    "min_stake": 30.0,
+    "model_path": "/Users/x/WEB-PC/ai_agent/models/dqn_wait_risk_cashout_30min_ladder_200_40k.zip",
+    "resume": true,
+    "reward_objective": "risk",
+    "risk_cashout_balance": 2000.0,
+    "risk_max_bets": 45,
+    "risk_pass_balance": 3000.0,
+    "risk_target_bet_rate": 0.15,
+    "risk_target_bets": 30,
+    "seed": 42,
+    "target_update_interval": 2000,
+    "total_timesteps": 30000,
+    "train_freq": 1,
+    "verbose": 1,
+    "wait_reward": 0.0
+  }
+}
