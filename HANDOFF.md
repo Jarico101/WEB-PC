@@ -159,6 +159,14 @@ git diff --check
 4. 仅在风险模型独立资格通过后，才继续第三层 PPO 风控实验。
 5. 保持全程虚拟模拟边界。
 
+## PWA / VPS 运行状态（2026-09-11）
+
+- PWA 生产域名为 `https://pc28.startpops.xyz`，前端直连 VPS API `https://api.startpops.xyz/api/ai-signal`。
+- VPS 的 `pc28-api.service`、`pc28-refresh-worker.service` 与 Nginx 均已启用并运行；最近期号连续性检查通过。
+- PWA 的 `BOT SIGNAL` 依赖 API `prediction` 字段。完整历史现超过 31,000 期，不能直接对完整历史运行旧的二次复杂度回放，否则会阻塞 API。
+- 已在 VPS 的 `pc28-api.service` 设置 `PC28_API_PREDICTION_ENABLED=1` 及 `PC28_PREDICTION_MAX_DRAWS=1000`。预测区块只使用最近 1,000 期；主统计、遗漏与压力仍使用完整历史。
+- `COMBO SIMULATION` 后端未部署：`/api/combo-signal` 与 `/api/combo/metrics` 当前返回 404，PWA 应显示 `OFFLINE`，不得伪造模拟结果。
+
 ## 13/14 风险计划执行状态（2026-09-07）
 
 已执行 `PC28_13_14_RISK_EXECUTION_ACCEPTANCE_PLAN.md` 的 Train-only 风险研究与独立资格阶段。报告：`ai_agent/logs/risk_1314/train_only_research.json` 和 `ai_agent/logs/risk_1314/train_only_research.md`。
