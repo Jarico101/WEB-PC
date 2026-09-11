@@ -1,0 +1,12 @@
+# The Vercel deployment is a static Vite frontend. Runtime data, ML experiments,
+# and local development dependencies are served or used outside Vercel.
+.git/
+.vercel/
+.venv/
+node_modules/
+ai_agent/
+data/
+.firecrawl/
+.code-graph/
+.pc28-recovery/
+KenoPastYears.zip
