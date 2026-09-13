@@ -134,7 +134,23 @@ def train_model(
     game_fail_balance_multiplier: float = 0.7,
     game_target_bet_rate: float = 0.2,
     resume: bool = False,
+    combo: bool = False,
 ) -> Path:
+    if combo:
+        from .train_combo import train_ppo_combo
+
+        target = Path(model_path)
+        if target == Path(MODEL_PATH):
+            target = MODEL_DIR / "ppo_combo_balance_v1.zip"
+        return train_ppo_combo(
+            history_source,
+            model_path=target,
+            total_timesteps=total_timesteps,
+            initial_balance=initial_balance,
+            seed=seed,
+            device=device,
+            check=check,
+        )
     settings = TrainSettings(
         model_path=Path(model_path),
         total_timesteps=total_timesteps,
@@ -191,6 +207,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train PC28 PPO model.")
     parser.add_argument("history", help="CSV/JSON/JSONL history file")
     parser.add_argument("--model", default=str(MODEL_PATH))
+    parser.add_argument("--combo", action="store_true", help="Train the PC28 three-base-market combo schema.")
     parser.add_argument("--capital-game-model", action="store_true", help="Save to ppo_capital_game_v1.zip and enable the game objective.")
     parser.add_argument("--timesteps", type=int, default=500_000)
     parser.add_argument("--initial-balance", type=float, default=DEFAULT_INITIAL_BALANCE)
@@ -233,6 +250,7 @@ def main() -> None:
         game_fail_balance_multiplier=args.game_fail_multiplier,
         game_target_bet_rate=args.game_target_bet_rate,
         resume=args.resume,
+        combo=args.combo,
     )
     print(f"saved model: {output}")
     print(f"saved metadata: {metadata_path_for(output)}")

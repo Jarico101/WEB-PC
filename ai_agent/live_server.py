@@ -16,13 +16,18 @@ from .casino_env import CasinoEnv, DIRECTION_LABELS
 from .config import DEFAULT_MAX_STAKE, MODEL_PATH, PROJECT_ROOT
 from .data_adapter import clean_history
 from .infer import action_to_decision
+from .infer_combo import predict_combo_decision
+from .markets_combo import CONFIRMED_EXTREME_RANGES, ExtremeRanges
+from .live_combo import ComboLiveSynchronizer
 from .model_policy import resolve_ppo_model_path
+from .online_combo import ComboOnlineLedger
 from .risk_guard import RuntimeState, evaluate_risk
 
 
 LIVE_SIGNAL_URL = "https://api.startpops.xyz/api/ai-signal"
 SMOKE_MODEL_PATH = PROJECT_ROOT / "ai_agent" / "models" / "ppo_casino_model_smoke.zip"
 _MODEL_CACHE: dict[str, Any] = {}
+_COMBO_LEDGER_CACHE: dict[str, ComboOnlineLedger] = {}
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,11 @@ class LiveServerConfig:
     initial_balance: float | None = None
     losing_streak: int = 0
     deterministic: bool = True
+    combo_model_path: str | None = None
+    combo_algorithm: str = "ppo"
+    combo_log_path: str | None = None
+    combo_initial_balance: float = 10_000.0
+    combo_extreme_ranges: ExtremeRanges = CONFIRMED_EXTREME_RANGES
 
 
 Predictor = Callable[..., dict[str, Any]]
@@ -133,6 +143,80 @@ def build_agent_signal(
     }
 
 
+def build_combo_signal(
+    payload: dict[str, Any],
+    *,
+    model_path: str,
+    algorithm: str = "ppo",
+    balance: float = 10_000.0,
+    deterministic: bool = True,
+    extreme_ranges: ExtremeRanges = CONFIRMED_EXTREME_RANGES,
+) -> dict[str, Any]:
+    """Build a simulation-only combo signal; never submits an external order."""
+
+    decision = predict_combo_decision(
+        payload,
+        model_path=model_path,
+        algorithm=algorithm,
+        balance=balance,
+        deterministic=deterministic,
+        extreme_ranges=extreme_ranges,
+    )
+    return {
+        "ok": True,
+        "dry_run": True,
+        "allowed": True,
+        "issue": decision.get("issue", ""),
+        "combo": decision,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def read_combo_history(log_path: str | Path | None, *, limit: int = 100) -> list[dict[str, Any]]:
+    """Read immutable simulation settlements only; no external data mutation."""
+
+    if not log_path:
+        return []
+    path = Path(log_path)
+    if not path.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                if payload.get("event", "settlement") == "settlement":
+                    records.append(payload)
+    return records[-max(1, min(int(limit), 1_000)):]
+
+
+def combo_metrics(log_path: str | Path | None) -> dict[str, Any]:
+    records = read_combo_history(log_path, limit=1_000)
+    executed = [record for record in records if not bool(record.get("is_shadow", False))]
+    shadow = [record for record in records if bool(record.get("is_shadow", False))]
+    equity = [float(record.get("balance_after", 0.0)) for record in executed]
+    peak = equity[0] if equity else 0.0
+    max_drawdown = 0.0
+    for balance in equity:
+        peak = max(peak, balance)
+        if peak > 0:
+            max_drawdown = max(max_drawdown, (peak - balance) / peak)
+    return {
+        "settled_rounds": len(records),
+        "executed_rounds": len(executed),
+        "shadow_rounds": len(shadow),
+        "executed_net_profit": round(sum(float(record.get("net_profit", 0.0)) for record in executed), 2),
+        "shadow_net_profit": round(sum(float(record.get("net_profit", 0.0)) for record in shadow), 2),
+        "balance": equity[-1] if equity else None,
+        "max_drawdown": round(max_drawdown, 6),
+    }
+
+
 def make_handler(config: LiveServerConfig) -> type[BaseHTTPRequestHandler]:
     class AgentSignalHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -140,22 +224,51 @@ def make_handler(config: LiveServerConfig) -> type[BaseHTTPRequestHandler]:
             if parsed.path == "/healthz":
                 self._send_json({"ok": True})
                 return
-            if parsed.path != "/agent-signal":
+            if parsed.path not in {"/agent-signal", "/combo-signal", "/combo-sync", "/combo-history", "/combo/metrics"}:
                 self._send_json({"ok": False, "error": "not_found"}, status=404)
                 return
 
             params = parse.parse_qs(parsed.query)
             try:
+                if parsed.path == "/combo-history":
+                    self._send_json({"ok": True, "dry_run": True, "history": read_combo_history(config.combo_log_path, limit=_int_param(params, "limit", 100))})
+                    return
+                if parsed.path == "/combo/metrics":
+                    self._send_json({"ok": True, "dry_run": True, "metrics": combo_metrics(config.combo_log_path)})
+                    return
                 payload = fetch_live_payload(config.api_url, timeout=config.timeout)
-                result = build_agent_signal(
-                    payload,
-                    model_path=config.model_path,
-                    balance=_float_param(params, "balance", config.balance),
-                    max_stake=_float_param(params, "max_stake", config.max_stake),
-                    initial_balance=_optional_float_param(params, "initial_balance", config.initial_balance),
-                    losing_streak=_int_param(params, "losing_streak", config.losing_streak),
-                    deterministic=config.deterministic,
-                )
+                if parsed.path == "/combo-sync":
+                    if not config.combo_model_path:
+                        raise ValueError("combo_model_path is not configured")
+                    ledger = _combo_ledger(config)
+                    result = ComboLiveSynchronizer(
+                        ledger=ledger,
+                        model_path=config.combo_model_path,
+                        algorithm=config.combo_algorithm,
+                    ).process_payload(payload)
+                    self._send_json({"ok": True, **result})
+                    return
+                if parsed.path == "/combo-signal":
+                    if not config.combo_model_path:
+                        raise ValueError("combo_model_path is not configured")
+                    result = build_combo_signal(
+                        payload,
+                        model_path=config.combo_model_path,
+                        algorithm=config.combo_algorithm,
+                        balance=_float_param(params, "balance", 10_000.0),
+                        deterministic=config.deterministic,
+                        extreme_ranges=config.combo_extreme_ranges,
+                    )
+                else:
+                    result = build_agent_signal(
+                        payload,
+                        model_path=config.model_path,
+                        balance=_float_param(params, "balance", config.balance),
+                        max_stake=_float_param(params, "max_stake", config.max_stake),
+                        initial_balance=_optional_float_param(params, "initial_balance", config.initial_balance),
+                        losing_streak=_int_param(params, "losing_streak", config.losing_streak),
+                        deterministic=config.deterministic,
+                    )
                 self._send_json(result)
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=500)
@@ -192,6 +305,10 @@ def main() -> None:
     parser.add_argument("--max-stake", type=float, default=float(os.getenv("AGENT_MAX_STAKE", str(DEFAULT_MAX_STAKE))))
     parser.add_argument("--initial-balance", type=float, default=None)
     parser.add_argument("--losing-streak", type=int, default=int(os.getenv("AGENT_LOSING_STREAK", "0")))
+    parser.add_argument("--combo-model", default=os.getenv("COMBO_MODEL_PATH"))
+    parser.add_argument("--combo-algorithm", choices=["ppo", "dqn"], default=os.getenv("COMBO_ALGORITHM", "ppo"))
+    parser.add_argument("--combo-log", default=os.getenv("COMBO_LOG_PATH", "ai_agent/logs/combo_simulation.jsonl"))
+    parser.add_argument("--combo-initial-balance", type=float, default=float(os.getenv("COMBO_INITIAL_BALANCE", "10000")))
     args = parser.parse_args()
 
     serve(
@@ -204,6 +321,10 @@ def main() -> None:
             max_stake=args.max_stake,
             initial_balance=args.initial_balance,
             losing_streak=args.losing_streak,
+            combo_model_path=args.combo_model,
+            combo_algorithm=args.combo_algorithm,
+            combo_log_path=args.combo_log,
+            combo_initial_balance=args.combo_initial_balance,
         )
     )
 
@@ -213,6 +334,19 @@ def _load_model(model_path: str):
     if key not in _MODEL_CACHE:
         _MODEL_CACHE[key] = PPO.load(key)
     return _MODEL_CACHE[key]
+
+
+def _combo_ledger(config: LiveServerConfig) -> ComboOnlineLedger:
+    key = str(Path(config.combo_log_path or "ai_agent/logs/combo_simulation.jsonl").resolve())
+    if key not in _COMBO_LEDGER_CACHE:
+        ledger = ComboOnlineLedger(
+            balance=config.combo_initial_balance,
+            extreme_ranges=config.combo_extreme_ranges,
+            log_path=Path(key),
+        )
+        ledger.restore()
+        _COMBO_LEDGER_CACHE[key] = ledger
+    return _COMBO_LEDGER_CACHE[key]
 
 
 def _extract_issue(payload: dict[str, Any], fallback: Any) -> str:

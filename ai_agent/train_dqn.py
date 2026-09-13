@@ -25,6 +25,8 @@ from .training_utils import resolve_device
 DQN_MODEL_PATH = MODEL_DIR / "dqn_capital_game_v1.zip"
 DQN_MIN_STAKE = 30.0
 DQN_FIXED_STAKE_AMOUNTS = (30.0, 40.0, 50.0, 75.0, 100.0)
+# Backward-compatible public name used by existing experiment/test tooling.
+DQN_STAKE_AMOUNTS = DQN_FIXED_STAKE_AMOUNTS
 DQN_STAKE_RATIOS = (0.08, 0.10, 0.15)
 DQN_AMOUNT_BINS = tuple(range(len(DQN_FIXED_STAKE_AMOUNTS) + len(DQN_STAKE_RATIOS)))
 DQN_LOOKBACK_WINDOWS = (100, 200, 400, 1000)
@@ -63,7 +65,7 @@ DQN_NEGATIVE_EDGE_LOSS_MULTIPLIER = 1.5
 DQN_RISK_LOSS_DRAWDOWN_MULTIPLIER = 1.0
 DQN_RISK_LOSS_STREAK_STEP = 0.25
 DQN_LOW_BET_RATE_WAIT_PENALTY_MULTIPLIER = 0.25
-DQN_REWARD_OBJECTIVES = ("capital", "risk")
+DQN_REWARD_OBJECTIVES = ("capital", "risk", "profit", "balance")
 DQN_RISK_WAIT_REWARD = 0.05
 DQN_RISK_WAIT_PRESSURE_REWARD = 2.0
 DQN_RISK_CLEAN_BET_REWARD = 4.0
@@ -74,6 +76,10 @@ DQN_RISK_MAX_BETS = 45
 DQN_RISK_TARGET_BET_RATE = 0.15
 DQN_RISK_PASS_BALANCE = 3000.0
 DQN_RISK_CASHOUT_BALANCE = 2000.0
+DQN_RISK_MIN_CASHOUT_BETS = 15
+DQN_RISK_MAX_STEPS = 200
+DQN_RISK_FLOOR_BALANCE = 500.0
+DQN_MAX_STEPS = 200
 
 
 def dqn_lookback_features(lookback_windows: tuple[int, ...]) -> tuple[str, ...]:
@@ -115,6 +121,16 @@ class DqnActionSpec:
     def direction(self) -> int:
         return self.directions[0] if self.directions else 0
 
+    @property
+    def stake_per_play(self) -> float | None:
+        """Compatibility view for fixed-stake action specs."""
+
+        if self.stake_amount is not None:
+            return self.stake_amount
+        # Ratio actions still expose a finite comparison value for legacy
+        # metadata/tests; execution continues to use ``stake_ratio``.
+        return DQN_FIXED_STAKE_AMOUNTS[self.amount_bin % len(DQN_FIXED_STAKE_AMOUNTS)]
+
 
 def build_dqn_action_specs() -> tuple[DqnActionSpec, ...]:
     specs: list[DqnActionSpec] = [
@@ -153,6 +169,7 @@ class DqnCapitalEnv(gym.Wrapper):
         reward_objective: str = "capital",
         risk_target_bets: int = DQN_RISK_TARGET_BETS,
         risk_max_bets: int = DQN_RISK_MAX_BETS,
+        risk_min_cashout_bets: int = DQN_RISK_MIN_CASHOUT_BETS,
         risk_pass_balance: float = DQN_RISK_PASS_BALANCE,
         risk_cashout_balance: float = DQN_RISK_CASHOUT_BALANCE,
     ) -> None:
@@ -163,6 +180,7 @@ class DqnCapitalEnv(gym.Wrapper):
         self.reward_objective = reward_objective
         self.risk_target_bets = int(risk_target_bets)
         self.risk_max_bets = int(risk_max_bets)
+        self.risk_min_cashout_bets = int(risk_min_cashout_bets)
         self.risk_pass_balance = float(risk_pass_balance)
         self.risk_cashout_balance = float(risk_cashout_balance)
         self.random_start = random_start
@@ -170,9 +188,9 @@ class DqnCapitalEnv(gym.Wrapper):
         self.low_bet_rate_wait_penalty = float(low_bet_rate_wait_penalty)
         self.profit_lock_seen = False
         self.action_space = spaces.Discrete(len(action_specs))
-        aux_low = np.zeros(8 + len(self.lookback_features), dtype=np.float32)
+        aux_low = np.zeros(6 + len(self.lookback_features), dtype=np.float32)
         aux_high = np.array(
-            [10.0, 1.0, 10.0, 1.0, 10.0, 1.0, 1.0, 1.0, *([1.0] * len(self.lookback_features))],
+            [10.0, 1.0, 10.0, 1.0, 10.0, 1.0, *([1.0] * len(self.lookback_features))],
             dtype=np.float32,
         )
         self.observation_space = spaces.Box(
@@ -201,6 +219,10 @@ class DqnCapitalEnv(gym.Wrapper):
         action_index = int(action)
         spec = self.action_specs[action_index]
         edge_score = self._historical_edge_score(spec)
+        if self.reward_objective == "risk" and spec.is_wait and self._must_catch_up_bets():
+            action_index = self._best_catch_up_action()
+            spec = self.action_specs[action_index]
+            edge_score = self._historical_edge_score(spec)
         if self._risk_cashout_active() and spec.is_wait:
             return self._risk_cashout_wait_result(action_index, spec, edge_score)
         if self.reward_objective != "risk" and self._profit_lock_active() and spec.is_wait:
@@ -263,6 +285,52 @@ class DqnCapitalEnv(gym.Wrapper):
         }
         return self._augment_obs(obs), adjusted_reward, terminated, truncated, info
 
+    def _must_catch_up_bets(self) -> bool:
+        if self.env.balance < self.env.initial_balance * 0.7:
+            return False
+        if self.env._current_drawdown() >= 0.45:
+            return False
+        if self._risk_cashout_active():
+            return self.env.episode_bets < self.risk_min_cashout_bets
+        steps_left = max(0, self.env.game_objective.max_steps - self.env.episode_steps)
+        target_left = max(0, self.risk_target_bets - self.env.episode_bets)
+        if target_left <= 0:
+            return False
+        return target_left >= steps_left
+
+    def _best_catch_up_action(self) -> int:
+        candidates = [
+            (index, spec)
+            for index, spec in enumerate(self.action_specs)
+            if not spec.is_wait and len(spec.directions) == 1 and spec.stake_amount == self.env.min_stake
+        ]
+        if not candidates:
+            return next(index for index, spec in enumerate(self.action_specs) if not spec.is_wait)
+        return max(candidates, key=lambda item: self._catch_up_reference_score(item[1]))[0]
+
+    def _catch_up_reference_score(self, spec: DqnActionSpec, *, lookback: int = 1000) -> float:
+        current = max(0, int(self.env.current_step))
+        sample = self.env.history[max(0, current - lookback):current]
+        if spec.is_wait or not sample:
+            return 0.0
+        stake_per_play = self._stake_per_play(spec)
+        pnl_total = 0.0
+        current_loss_streak = 0
+        max_loss_streak = 0
+        for row in sample:
+            pnl = sum(
+                self.env._settle_bet(direction, stake_per_play, row, 0.0).profit_loss
+                for direction in spec.directions
+            )
+            pnl_total += pnl
+            if pnl > 0.0:
+                current_loss_streak = 0
+            elif pnl < 0.0:
+                current_loss_streak += 1
+                max_loss_streak = max(max_loss_streak, current_loss_streak)
+        avg_pnl = pnl_total / max(len(sample), 1)
+        return avg_pnl - 0.5 * max_loss_streak
+
     def _profit_lock_active(self) -> bool:
         return self.env.balance >= self.env.initial_balance * DQN_PROFIT_LOCK_MULTIPLIER
 
@@ -273,6 +341,29 @@ class DqnCapitalEnv(gym.Wrapper):
         )
 
     def _risk_cashout_wait_result(self, action_index: int, spec: DqnActionSpec, edge_score: float):
+        if self.env.episode_bets < self.risk_min_cashout_bets:
+            deficit = self.risk_min_cashout_bets - self.env.episode_bets
+            info = {
+                **self.env.last_info,
+                "game_objective_reason": "risk_cashout_under_min_bets",
+                "balance": round(self.env.balance, 6),
+                "profit_loss": 0.0,
+                "stake": 0.0,
+                "episode_bets": self.env.episode_bets,
+                "episode_steps": self.env.episode_steps,
+            }
+            reward = -1200.0 - 150.0 * deficit
+            return self._augment_obs(self.env._get_obs()), reward, False, True, {
+                **info,
+                "dqn_action": action_index,
+                "dqn_action_label": spec.label,
+                "dqn_directions": spec.directions,
+                "dqn_amount_bin": spec.amount_bin,
+                "dqn_profit_lock_active": False,
+                "dqn_profit_lock_seen": self.profit_lock_seen,
+                "dqn_historical_edge_score": round(edge_score, 6),
+                "dqn_adjusted_reward": round(reward, 6),
+            }
         info = {
             **self.env.last_info,
             "game_objective_reason": "risk_cashout",
@@ -314,8 +405,6 @@ class DqnCapitalEnv(gym.Wrapper):
         max_bets = max(self.env.game_objective.max_bets, 1)
         max_steps = max(self.env.game_objective.max_steps, 1)
         lookback = self._lookback_features()
-        schedule_deficit = self._bet_schedule_deficit() / max(self.risk_target_bets, 1)
-        schedule_surplus = self._bet_schedule_surplus() / max(self.risk_target_bets, 1)
         aux = np.array(
             [
                 self.env.balance / max(self.env.initial_balance, 1e-9),
@@ -324,8 +413,6 @@ class DqnCapitalEnv(gym.Wrapper):
                 self.env.episode_bets / max(self.env.episode_steps, 1),
                 min(self.env.losing_streak / 10.0, 10.0),
                 self.env.episode_steps / max_steps,
-                min(schedule_deficit, 1.0),
-                min(schedule_surplus, 1.0),
                 *lookback,
             ],
             dtype=np.float32,
@@ -399,15 +486,25 @@ class DqnCapitalEnv(gym.Wrapper):
         if self.reward_objective == "risk":
             reward = self._risk_control_reward(info, spec)
             force_reason = self._risk_force_reason(info)
-            if force_reason == "risk_under_target_bets":
-                reward -= 250.0 * (self.risk_target_bets - self.env.episode_bets)
+            forced_done = force_reason == "risk_balance_floor_breach"
+            if force_reason == "risk_balance_floor_breach":
+                reward -= 2500.0 + 5.0 * max(0.0, DQN_RISK_FLOOR_BALANCE - float(info.get("balance", self.env.balance)))
+            elif force_reason == "risk_cashout_under_min_bets":
+                reward -= 1200.0 + 150.0 * max(0, self.risk_min_cashout_bets - self.env.episode_bets)
+            elif force_reason == "risk_under_target_bets":
+                reward -= 600.0 * (self.risk_target_bets - self.env.episode_bets)
             elif force_reason == "risk_over_max_bets":
                 reward -= 1000.0 * (self.env.episode_bets - self.risk_max_bets)
             elif str(info.get("game_objective_reason", "none")) == "game_pass":
                 reward += 3000.0
             elif str(info.get("game_objective_reason", "none")) == "game_complete":
                 reward += 1000.0
-            return reward, False, force_reason
+            return reward, forced_done, force_reason
+
+        if self.reward_objective == "profit":
+            return self._profit_only_reward(info, spec), False, None
+        if self.reward_objective == "balance":
+            return self._balance_first_reward(info, spec, historical_edge_score), False, None
 
         pnl = float(info.get("profit_loss", 0.0))
         wealth_after = float(info.get("balance", self.env.balance))
@@ -433,6 +530,52 @@ class DqnCapitalEnv(gym.Wrapper):
             return float(shaped + self._terminal_objective_reward(info)), False, None
         return float(shaped), False, None
 
+    def _profit_only_reward(self, info: dict[str, Any], spec: DqnActionSpec) -> float:
+        pnl = float(info.get("profit_loss", 0.0))
+        reward = pnl
+        if spec.is_wait:
+            reward -= 0.2
+        reason = str(info.get("game_objective_reason", "none"))
+        if reason in {"game_pass", "game_complete", "game_fail"}:
+            reward += 2.0 * (float(info.get("balance", self.env.balance)) - self.env.initial_balance)
+        return reward
+
+    def _balance_first_reward(self, info: dict[str, Any], spec: DqnActionSpec, historical_edge_score: float) -> float:
+        balance = float(info.get("balance", self.env.balance))
+        pnl = float(info.get("profit_loss", 0.0))
+        drawdown = max(0.0, float(info.get("drawdown", 0.0)))
+        reward = pnl
+        if spec.is_wait:
+            reward += 0.1 if historical_edge_score <= 0.0 else -0.2
+        elif historical_edge_score <= 0.0:
+            reward -= 60.0 + 120.0 * abs(historical_edge_score)
+        elif historical_edge_score < DQN_WEAK_EDGE_THRESHOLD:
+            reward -= 15.0
+        else:
+            reward += 4.0 * min(historical_edge_score, 0.5)
+        if balance < 600.0:
+            reward -= 10.0 * (600.0 - balance)
+        elif balance < 700.0:
+            reward -= 2.0 * (700.0 - balance)
+        if drawdown > 0.5:
+            reward -= 1600.0 * (drawdown - 0.5)
+        elif drawdown > 0.4:
+            reward -= 300.0 * (drawdown - 0.4)
+        elif drawdown > 0.3:
+            reward -= 80.0 * (drawdown - 0.3)
+        reason = str(info.get("game_objective_reason", "none"))
+        if reason in {"game_pass", "game_complete", "game_fail", "game_bet_limit"}:
+            reward += 3.0 * (balance - self.env.initial_balance)
+            if balance < 600.0:
+                reward -= 3500.0
+            elif balance < 700.0:
+                reward -= 1000.0
+            if drawdown > 0.6:
+                reward -= 1500.0
+            elif drawdown > 0.5:
+                reward -= 600.0
+        return reward
+
     def _risk_control_reward(self, info: dict[str, Any], spec: DqnActionSpec) -> float:
         pressure = self._risk_pressure_score(info)
         bet_budget_pressure = self._bet_budget_pressure()
@@ -442,13 +585,20 @@ class DqnCapitalEnv(gym.Wrapper):
         balance = float(info.get("balance", self.env.balance))
         pass_reached = balance >= self.risk_pass_balance
         cashout_reached = balance >= self.risk_cashout_balance
+        floor_gap = max(0.0, DQN_RISK_FLOOR_BALANCE - balance)
         if spec.is_wait:
             if pass_reached:
                 return 2000.0
             if cashout_reached:
+                if self.env.episode_bets < self.risk_min_cashout_bets:
+                    return -1000.0 - 150.0 * (self.risk_min_cashout_bets - self.env.episode_bets)
                 return 500.0
+            if floor_gap > 0.0:
+                return 10.0
+            if balance < self.env.initial_balance * 0.7:
+                return 20.0 + 20.0 * pressure
             if schedule_deficit > 0.25:
-                return -7.5 - 5.0 * min(schedule_deficit, 5.0)
+                return -35.0 - 15.0 * min(schedule_deficit, 5.0)
             return (
                 DQN_RISK_WAIT_REWARD
                 + DQN_RISK_WAIT_PRESSURE_REWARD * max(pressure, bet_budget_pressure)
@@ -458,6 +608,12 @@ class DqnCapitalEnv(gym.Wrapper):
         bad_reasons = self._bad_gate_reasons(info)
         watch_penalty = max(0.0, float(info.get("watch_penalty", 0.0)))
         previous_balance = balance - float(info.get("profit_loss", 0.0))
+        if floor_gap > 0.0:
+            return -250.0 - 2.0 * floor_gap
+        if balance < self.env.initial_balance * 0.7:
+            return -220.0 - 250.0 * (0.7 - balance / max(self.env.initial_balance, 1e-9))
+        if balance < self.env.initial_balance * 0.85 and pressure > 0.25:
+            return -120.0 - 120.0 * pressure
         if previous_balance >= self.risk_pass_balance:
             return -DQN_RISK_BET_VIOLATION_COST * 4.0
         if previous_balance >= self.risk_cashout_balance:
@@ -469,13 +625,13 @@ class DqnCapitalEnv(gym.Wrapper):
             cooldown_cost = 40.0 if "cooldown_violation" in bad_reasons else 0.0
             return -DQN_RISK_BET_VIOLATION_COST - 10.0 * len(bad_reasons) - cooldown_cost - scaled_penalty
         package_size = max(1, len(spec.directions))
-        package_cost = 18.0 * max(0, package_size - 1)
-        schedule_reward = 12.0 * min(max(schedule_deficit, 0.5), 4.0)
+        package_cost = 14.0 * max(0, package_size - 1)
+        schedule_reward = 35.0 * min(max(schedule_deficit, 0.5), 4.0)
         surplus_cost = 6.0 * min(schedule_surplus, 5.0)
         return (
-            DQN_RISK_CLEAN_BET_REWARD
+            DQN_RISK_CLEAN_BET_REWARD * 1.5
             + schedule_reward
-            + 10.0 * bet_deficit_pressure
+            + 18.0 * bet_deficit_pressure
             - pressure
             - 8.0 * bet_budget_pressure
             - surplus_cost
@@ -486,10 +642,14 @@ class DqnCapitalEnv(gym.Wrapper):
         reason = str(info.get("game_objective_reason", "none"))
         if reason == "game_pass":
             return None
+        balance = float(info.get("balance", self.env.balance))
+        if balance < DQN_RISK_FLOOR_BALANCE:
+            return "risk_balance_floor_breach"
         if reason != "game_complete":
             return None
-        balance = float(info.get("balance", self.env.balance))
         if balance >= self.risk_cashout_balance:
+            if self.env.episode_bets < self.risk_min_cashout_bets:
+                return "risk_cashout_under_min_bets"
             return "risk_cashout"
         if self.env.episode_bets < self.risk_target_bets:
             return "risk_under_target_bets"
@@ -695,6 +855,7 @@ class DqnTrainSettings:
     initial_balance: float = 1000.0
     max_stake: float = 100.0
     min_stake: float = DQN_MIN_STAKE
+    max_steps: int = DQN_MAX_STEPS
     device: str = "auto"
     seed: int = 42
     learning_rate: float = 0.0001
@@ -718,6 +879,8 @@ class DqnTrainSettings:
     reward_objective: str = "capital"
     risk_target_bets: int = DQN_RISK_TARGET_BETS
     risk_max_bets: int = DQN_RISK_MAX_BETS
+    risk_min_cashout_bets: int = DQN_RISK_MIN_CASHOUT_BETS
+    risk_max_steps: int = DQN_RISK_MAX_STEPS
     risk_target_bet_rate: float = DQN_RISK_TARGET_BET_RATE
     risk_pass_balance: float = DQN_RISK_PASS_BALANCE
     risk_cashout_balance: float = DQN_RISK_CASHOUT_BALANCE
@@ -732,6 +895,8 @@ class DqnTrainSettings:
             raise ValueError("max_stake must be positive")
         if self.min_stake <= 0:
             raise ValueError("min_stake must be positive")
+        if self.max_steps <= 0:
+            raise ValueError("max_steps must be positive")
         if self.learning_rate <= 0:
             raise ValueError("learning_rate must be positive")
         if self.buffer_size <= 0:
@@ -758,6 +923,10 @@ class DqnTrainSettings:
             raise ValueError("risk_target_bets must be positive")
         if self.risk_max_bets < self.risk_target_bets:
             raise ValueError("risk_max_bets must be >= risk_target_bets")
+        if self.risk_min_cashout_bets <= 0:
+            raise ValueError("risk_min_cashout_bets must be positive")
+        if self.risk_max_steps <= 0:
+            raise ValueError("risk_max_steps must be positive")
         if self.risk_target_bet_rate <= 0:
             raise ValueError("risk_target_bet_rate must be positive")
         if self.risk_pass_balance <= self.initial_balance:
@@ -787,10 +956,10 @@ class DqnRiskGameObjectiveConfig(GameObjectiveConfig):
         return max(0, int(self.explicit_max_bets))
 
 
-def build_dqn_game_objective() -> GameObjectiveConfig:
+def build_dqn_game_objective(max_steps: int = DQN_MAX_STEPS) -> GameObjectiveConfig:
     return GameObjectiveConfig(
         enabled=True,
-        max_steps=200,
+        max_steps=max_steps,
         pass_balance_multiplier=3.0,
         fail_balance_multiplier=0.7,
         target_bet_rate=0.22,
@@ -805,7 +974,7 @@ def build_dqn_game_objective() -> GameObjectiveConfig:
 def build_risk_control_objective(settings: DqnTrainSettings) -> GameObjectiveConfig:
     return DqnRiskGameObjectiveConfig(
         enabled=True,
-        max_steps=200,
+        max_steps=settings.risk_max_steps,
         pass_balance_multiplier=settings.risk_pass_balance / settings.initial_balance,
         fail_balance_multiplier=0.0,
         target_bet_rate=settings.risk_target_bet_rate,
@@ -897,7 +1066,7 @@ def build_dqn_env(
         min_stake=settings.min_stake,
         reward_mode="normalized",
         training_gate=training_gate,
-        game_objective=build_risk_control_objective(settings) if risk_mode else build_dqn_game_objective(),
+        game_objective=build_risk_control_objective(settings) if risk_mode else build_dqn_game_objective(settings.max_steps),
     )
     return DqnCapitalEnv(
         env,
@@ -908,6 +1077,7 @@ def build_dqn_env(
         reward_objective=settings.reward_objective,
         risk_target_bets=settings.risk_target_bets,
         risk_max_bets=settings.risk_max_bets,
+        risk_min_cashout_bets=settings.risk_min_cashout_bets,
         risk_pass_balance=settings.risk_pass_balance,
         risk_cashout_balance=settings.risk_cashout_balance,
     )
@@ -965,7 +1135,7 @@ def write_training_metadata(settings: DqnTrainSettings, *, history_rows: int, re
             for spec in DQN_ACTION_SPECS
         ],
         "plays": {str(key): asdict(value) for key, value in BET_SPECS.items() if value.label in DQN_PLAY_LABELS},
-        "game_objective": asdict(build_dqn_game_objective()),
+        "game_objective": asdict(build_dqn_game_objective(settings.max_steps)),
         "lookback_windows": list(settings.lookback_windows),
         "required_history_rows": dqn_required_history_rows(lookback_windows=settings.lookback_windows),
         "settings": {**asdict(settings), "model_path": str(settings.model_path)},
@@ -982,6 +1152,7 @@ def train_model(
     initial_balance: float = 1000.0,
     max_stake: float = 100.0,
     min_stake: float = DQN_MIN_STAKE,
+    max_steps: int = DQN_MAX_STEPS,
     check: bool = True,
     device: str = "auto",
     seed: int = 42,
@@ -993,16 +1164,35 @@ def train_model(
     reward_objective: str = "capital",
     risk_target_bets: int = DQN_RISK_TARGET_BETS,
     risk_max_bets: int = DQN_RISK_MAX_BETS,
+    risk_min_cashout_bets: int = DQN_RISK_MIN_CASHOUT_BETS,
+    risk_max_steps: int = DQN_RISK_MAX_STEPS,
     risk_target_bet_rate: float = DQN_RISK_TARGET_BET_RATE,
     risk_pass_balance: float = DQN_RISK_PASS_BALANCE,
     risk_cashout_balance: float = DQN_RISK_CASHOUT_BALANCE,
+    combo: bool = False,
 ) -> Path:
+    if combo:
+        from .train_combo import train_dqn_combo
+
+        target = Path(model_path)
+        if target == Path(DQN_MODEL_PATH):
+            target = MODEL_DIR / "dqn_combo_balance_v1.zip"
+        return train_dqn_combo(
+            history_source,
+            model_path=target,
+            total_timesteps=total_timesteps,
+            initial_balance=initial_balance,
+            seed=seed,
+            device=device,
+            check=check,
+        )
     settings = DqnTrainSettings(
         model_path=Path(model_path),
         total_timesteps=total_timesteps,
         initial_balance=initial_balance,
         max_stake=max_stake,
         min_stake=min_stake,
+        max_steps=max_steps,
         check_env=check,
         device=device,
         seed=seed,
@@ -1014,6 +1204,8 @@ def train_model(
         reward_objective=reward_objective,
         risk_target_bets=risk_target_bets,
         risk_max_bets=risk_max_bets,
+        risk_min_cashout_bets=risk_min_cashout_bets,
+        risk_max_steps=risk_max_steps,
         risk_target_bet_rate=risk_target_bet_rate,
         risk_pass_balance=risk_pass_balance,
         risk_cashout_balance=risk_cashout_balance,
@@ -1047,6 +1239,7 @@ def evaluate_model(
     initial_balance: float = 1000.0,
     max_stake: float = 100.0,
     min_stake: float = DQN_MIN_STAKE,
+    max_steps: int = DQN_MAX_STEPS,
     device: str = "auto",
     wait_reward: float = 0.0,
     low_bet_rate_wait_penalty: float = 1.0,
@@ -1054,6 +1247,8 @@ def evaluate_model(
     reward_objective: str = "capital",
     risk_target_bets: int = DQN_RISK_TARGET_BETS,
     risk_max_bets: int = DQN_RISK_MAX_BETS,
+    risk_min_cashout_bets: int = DQN_RISK_MIN_CASHOUT_BETS,
+    risk_max_steps: int = DQN_RISK_MAX_STEPS,
     risk_target_bet_rate: float = DQN_RISK_TARGET_BET_RATE,
     risk_pass_balance: float = DQN_RISK_PASS_BALANCE,
     risk_cashout_balance: float = DQN_RISK_CASHOUT_BALANCE,
@@ -1064,6 +1259,7 @@ def evaluate_model(
         initial_balance=initial_balance,
         max_stake=max_stake,
         min_stake=min_stake,
+        max_steps=max_steps,
         device=device,
         wait_reward=wait_reward,
         low_bet_rate_wait_penalty=low_bet_rate_wait_penalty,
@@ -1071,6 +1267,8 @@ def evaluate_model(
         reward_objective=reward_objective,
         risk_target_bets=risk_target_bets,
         risk_max_bets=risk_max_bets,
+        risk_min_cashout_bets=risk_min_cashout_bets,
+        risk_max_steps=risk_max_steps,
         risk_target_bet_rate=risk_target_bet_rate,
         risk_pass_balance=risk_pass_balance,
         risk_cashout_balance=risk_cashout_balance,
@@ -1083,7 +1281,7 @@ def evaluate_model(
     starts = _episode_starts(
         len(env.env.history),
         episodes,
-        build_dqn_game_objective().max_steps,
+        build_risk_control_objective(settings).max_steps if reward_objective == "risk" else build_dqn_game_objective(settings.max_steps).max_steps,
         min_start=max_lookback_window(settings.lookback_windows),
     )
     episode_reports = [_evaluate_episode(model, env, start) for start in starts]
@@ -1107,6 +1305,7 @@ def evaluate_walk_forward_model(
     initial_balance: float = 1000.0,
     max_stake: float = 100.0,
     min_stake: float = DQN_MIN_STAKE,
+    max_steps: int = DQN_MAX_STEPS,
     device: str = "auto",
     wait_reward: float = 0.0,
     low_bet_rate_wait_penalty: float = 1.0,
@@ -1114,6 +1313,8 @@ def evaluate_walk_forward_model(
     reward_objective: str = "capital",
     risk_target_bets: int = DQN_RISK_TARGET_BETS,
     risk_max_bets: int = DQN_RISK_MAX_BETS,
+    risk_min_cashout_bets: int = DQN_RISK_MIN_CASHOUT_BETS,
+    risk_max_steps: int = DQN_RISK_MAX_STEPS,
     risk_target_bet_rate: float = DQN_RISK_TARGET_BET_RATE,
     risk_pass_balance: float = DQN_RISK_PASS_BALANCE,
     risk_cashout_balance: float = DQN_RISK_CASHOUT_BALANCE,
@@ -1125,6 +1326,7 @@ def evaluate_walk_forward_model(
         initial_balance=initial_balance,
         max_stake=max_stake,
         min_stake=min_stake,
+        max_steps=max_steps,
         device=device,
         wait_reward=wait_reward,
         low_bet_rate_wait_penalty=low_bet_rate_wait_penalty,
@@ -1132,6 +1334,8 @@ def evaluate_walk_forward_model(
         reward_objective=reward_objective,
         risk_target_bets=risk_target_bets,
         risk_max_bets=risk_max_bets,
+        risk_min_cashout_bets=risk_min_cashout_bets,
+        risk_max_steps=risk_max_steps,
         risk_target_bet_rate=risk_target_bet_rate,
         risk_pass_balance=risk_pass_balance,
         risk_cashout_balance=risk_cashout_balance,
@@ -1140,7 +1344,7 @@ def evaluate_walk_forward_model(
     )
     preflight_dqn_training(history_source, lookback_windows=settings.lookback_windows)
     env = build_dqn_env(history_source, settings=settings, random_start=False)
-    objective = build_dqn_game_objective()
+    objective = build_risk_control_objective(settings) if reward_objective == "risk" else build_dqn_game_objective(settings.max_steps)
     model = DQN.load(resolve_model_path(model_path), env=env, device=resolve_device(device))
     start = _single_reference_window_start(
         len(env.env.history),
@@ -1326,7 +1530,12 @@ def _episode_result(reason: str) -> str:
         return "cashout_sprint_failed"
     if reason == "game_bet_limit":
         return "violation"
-    if reason in {"risk_under_target_bets", "risk_over_max_bets"}:
+    if reason in {
+        "risk_under_target_bets",
+        "risk_over_max_bets",
+        "risk_cashout_under_min_bets",
+        "risk_balance_floor_breach",
+    }:
         return "violation"
     if reason == "game_fail":
         return "fail"
@@ -1422,11 +1631,13 @@ def main() -> None:
     parser.add_argument("history", help="CSV/JSON/JSONL training history file")
     parser.add_argument("--eval-history", help="Optional CSV/JSON/JSONL evaluation history file")
     parser.add_argument("--model", default=str(DQN_MODEL_PATH))
+    parser.add_argument("--combo", action="store_true", help="Train the PC28 three-base-market combo schema.")
     parser.add_argument("--timesteps", type=int, default=100_000)
     parser.add_argument("--episodes", type=int, default=20)
     parser.add_argument("--initial-balance", type=float, default=1000.0)
     parser.add_argument("--max-stake", type=float, default=100.0)
     parser.add_argument("--min-stake", type=float, default=DQN_MIN_STAKE)
+    parser.add_argument("--max-steps", type=int, default=DQN_MAX_STEPS)
     parser.add_argument("--device", choices=["auto", "mps", "cuda", "cpu"], default="auto")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--verbose", type=int, default=1)
@@ -1436,6 +1647,8 @@ def main() -> None:
     parser.add_argument("--reward-objective", choices=DQN_REWARD_OBJECTIVES, default="capital")
     parser.add_argument("--risk-target-bets", type=int, default=DQN_RISK_TARGET_BETS)
     parser.add_argument("--risk-max-bets", type=int, default=DQN_RISK_MAX_BETS)
+    parser.add_argument("--risk-min-cashout-bets", type=int, default=DQN_RISK_MIN_CASHOUT_BETS)
+    parser.add_argument("--risk-max-steps", type=int, default=DQN_RISK_MAX_STEPS)
     parser.add_argument("--risk-target-bet-rate", type=float, default=DQN_RISK_TARGET_BET_RATE)
     parser.add_argument("--risk-pass-balance", type=float, default=DQN_RISK_PASS_BALANCE)
     parser.add_argument("--risk-cashout-balance", type=float, default=DQN_RISK_CASHOUT_BALANCE)
@@ -1456,6 +1669,23 @@ def main() -> None:
         lookback_windows = parse_lookback_windows(args.lookback_windows)
     except ValueError as exc:
         parser.error(str(exc))
+
+    if args.combo:
+        if args.eval_only or args.walk_forward_eval or args.preflight_only:
+            parser.error("combo CLI currently supports training only; use ai_agent.backtest_combo and ai_agent.infer_combo for evaluation")
+        output_model = train_model(
+            args.history,
+            model_path=args.model,
+            total_timesteps=args.timesteps,
+            initial_balance=args.initial_balance,
+            check=not args.skip_check_env,
+            device=args.device,
+            seed=args.seed,
+            combo=True,
+        )
+        print(f"saved combo model: {output_model}")
+        print(f"saved combo metadata: {metadata_path_for(output_model)}")
+        return
 
     try:
         preflight = preflight_dqn_training(
@@ -1479,6 +1709,7 @@ def main() -> None:
             initial_balance=args.initial_balance,
             max_stake=args.max_stake,
             min_stake=args.min_stake,
+            max_steps=args.max_steps,
             check=not args.skip_check_env,
             device=args.device,
             seed=args.seed,
@@ -1490,9 +1721,12 @@ def main() -> None:
             reward_objective=args.reward_objective,
             risk_target_bets=args.risk_target_bets,
             risk_max_bets=args.risk_max_bets,
+            risk_min_cashout_bets=args.risk_min_cashout_bets,
+            risk_max_steps=args.risk_max_steps,
             risk_target_bet_rate=args.risk_target_bet_rate,
             risk_pass_balance=args.risk_pass_balance,
             risk_cashout_balance=args.risk_cashout_balance,
+            combo=args.combo,
         )
     if args.walk_forward_eval:
         report = evaluate_walk_forward_model(
@@ -1501,6 +1735,7 @@ def main() -> None:
             initial_balance=args.initial_balance,
             max_stake=args.max_stake,
             min_stake=args.min_stake,
+            max_steps=args.max_steps,
             device=args.device,
             wait_reward=args.wait_reward,
             low_bet_rate_wait_penalty=args.low_bet_rate_wait_penalty,
@@ -1508,6 +1743,8 @@ def main() -> None:
             reward_objective=args.reward_objective,
             risk_target_bets=args.risk_target_bets,
             risk_max_bets=args.risk_max_bets,
+            risk_min_cashout_bets=args.risk_min_cashout_bets,
+            risk_max_steps=args.risk_max_steps,
             risk_target_bet_rate=args.risk_target_bet_rate,
             risk_pass_balance=args.risk_pass_balance,
             risk_cashout_balance=args.risk_cashout_balance,
@@ -1522,6 +1759,7 @@ def main() -> None:
             initial_balance=args.initial_balance,
             max_stake=args.max_stake,
             min_stake=args.min_stake,
+            max_steps=args.max_steps,
             device=args.device,
             wait_reward=args.wait_reward,
             low_bet_rate_wait_penalty=args.low_bet_rate_wait_penalty,
@@ -1529,6 +1767,8 @@ def main() -> None:
             reward_objective=args.reward_objective,
             risk_target_bets=args.risk_target_bets,
             risk_max_bets=args.risk_max_bets,
+            risk_min_cashout_bets=args.risk_min_cashout_bets,
+            risk_max_steps=args.risk_max_steps,
             risk_target_bet_rate=args.risk_target_bet_rate,
             risk_pass_balance=args.risk_pass_balance,
             risk_cashout_balance=args.risk_cashout_balance,

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "start": "vite preview --host 0.0.0.0",
+    "start": "node server.js",
+    "preview": "vite preview --host 0.0.0.0",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },

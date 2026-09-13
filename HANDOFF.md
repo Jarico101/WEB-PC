@@ -161,11 +161,13 @@ git diff --check
 
 ## PWA / VPS 运行状态（2026-09-11）
 
-- PWA 生产域名为 `https://pc28.startpops.xyz`，前端直连 VPS API `https://api.startpops.xyz/api/ai-signal`。
+- PWA 生产域名为 `https://pc28.startpops.xyz`。浏览器请求同源 `/api/ai-signal`，由 Vercel 重写转发至 VPS API `https://api.startpops.xyz/api/ai-signal`，避免移动端直连 VPS API 失败。
 - VPS 的 `pc28-api.service`、`pc28-refresh-worker.service` 与 Nginx 均已启用并运行；最近期号连续性检查通过。
 - PWA 的 `BOT SIGNAL` 依赖 API `prediction` 字段。完整历史现超过 31,000 期，不能直接对完整历史运行旧的二次复杂度回放，否则会阻塞 API。
 - 已在 VPS 的 `pc28-api.service` 设置 `PC28_API_PREDICTION_ENABLED=1` 及 `PC28_PREDICTION_MAX_DRAWS=1000`。预测区块只使用最近 1,000 期；主统计、遗漏与压力仍使用完整历史。
 - `COMBO SIMULATION` 后端未部署：`/api/combo-signal` 与 `/api/combo/metrics` 当前返回 404，PWA 应显示 `OFFLINE`，不得伪造模拟结果。
+- PWA 已更正指标展示：理论遗漏按连续未出期望 `(1-p)/p` 显示；策略区分当前遗漏条件率与“出顺后”历史率；BOT 命中率不再标为原始分数；走势图仅显示遗漏变化，不再伪造逐期历史压力评分。
+- 移动端已修正走势图触摸提示被裁切、组合模拟统计强制三列的问题。2026-09-11 的生产 HTTP、TLS、DNS 与 API CORS 检查均正常，未见 Vercel 访问保护或 IP 拦截证据。
 
 ## 13/14 风险计划执行状态（2026-09-07）
 

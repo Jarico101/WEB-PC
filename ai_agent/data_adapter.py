@@ -8,6 +8,7 @@ from typing import Any, Iterable
 
 from .config import DEFAULT_INITIAL_BALANCE
 from .file_policy import resolve_history_path
+from .markets_combo import ZeroPolicy, base_market_for_sum, validate_sum
 
 
 FEATURE_COLUMNS = [
@@ -38,6 +39,23 @@ FORBIDDEN_FEATURE_KEYS = {
 
 class DataAdapterError(ValueError):
     pass
+
+
+COMBO_FEATURE_COLUMNS = (
+    "base_rate_small_odd_100",
+    "base_rate_small_even_100",
+    "base_rate_big_odd_100",
+    "base_rate_big_even_100",
+    "sum_mean_100",
+    "sum_std_100",
+    "sum_rate_low_tail_100",
+    "sum_rate_high_tail_100",
+    *(f"sum_rate_{total:02d}_100" for total in range(28)),
+)
+COMBO_FEATURE_VERSION = "combo-history-v2-sum-rates"
+# Longer causal windows reduce variance on the near-uniform PC28 sum stream.
+# They are still computed strictly from rows preceding the current row.
+PROBABILITY_WINDOWS = (50, 100, 200, 400, 800, 1600, 3200, 4000, 6400)
 
 
 def load_history(source: str | Path | Iterable[dict[str, Any]] | dict[str, Any]) -> list[dict[str, Any]]:
@@ -126,6 +144,98 @@ def clean_history(
     return cleaned
 
 
+def clean_combo_history(
+    source: str | Path | Iterable[dict[str, Any]] | dict[str, Any],
+    *,
+    zero_policy: ZeroPolicy = ZeroPolicy.EXCLUDE,
+    min_rows: int = 1,
+) -> list[dict[str, Any]]:
+    """Normalize PC28 sum rows and calculate predictor features from prior rows only."""
+
+    parsed: list[dict[str, Any]] = []
+    for raw in load_history(source):
+        digits = _parse_digits(raw.get("digits") or raw.get("numbers"))
+        raw_sum = _coerce_float(raw.get("sum"))
+        if raw_sum is None:
+            raw_sum = sum(digits) if len(digits) == 3 else None
+        if raw_sum is None or int(raw_sum) != raw_sum:
+            continue
+        try:
+            total = validate_sum(int(raw_sum))
+        except ValueError:
+            continue
+        if digits and sum(digits) != total:
+            raise DataAdapterError(f"sum does not match digits for issue {raw.get('issue', '')}")
+        parsed.append(
+            {
+                "issue": str(raw.get("issue", "")).strip(),
+                "time": raw.get("time"),
+                "digits": digits,
+                "sum": total,
+                "size": "small" if 1 <= total <= 13 else "big" if 14 <= total <= 27 else None,
+                "parity": "odd" if total % 2 else "even",
+                "base_label": (
+                    base_market_for_sum(total, zero_policy=zero_policy).value
+                    if base_market_for_sum(total, zero_policy=zero_policy) is not None
+                    else None
+                ),
+                "raw": raw,
+            }
+        )
+    parsed.sort(key=_combo_issue_sort_key)
+    if len(parsed) < min_rows:
+        raise DataAdapterError(f"need at least {min_rows} usable combo rows, got {len(parsed)}")
+    issues = [row["issue"] for row in parsed]
+    if any(not issue for issue in issues) or len(set(issues)) != len(issues):
+        raise DataAdapterError("combo history must contain unique non-empty issues")
+
+    cleaned: list[dict[str, Any]] = []
+    prefix_counts = [[0] * 28]
+    for row in parsed:
+        previous = prefix_counts[-1].copy()
+        previous[row["sum"]] += 1
+        prefix_counts.append(previous)
+    for index, row in enumerate(parsed):
+        prior = parsed[max(0, index - 100):index]
+        labels = [item["base_label"] for item in prior]
+        sums = [item["sum"] for item in prior]
+        count = len(prior)
+        mean_sum = sum(sums) / count if count else 13.5
+        variance = sum((value - mean_sum) ** 2 for value in sums) / count if count else 0.0
+        features = {
+            **{
+                f"base_rate_{market}_100": labels.count(market) / count if count else 0.0
+                for market in ("small_odd", "small_even", "big_odd", "big_even")
+            },
+            "sum_mean_100": mean_sum / 27.0,
+            "sum_std_100": variance ** 0.5 / 27.0,
+            "sum_rate_low_tail_100": sum(value <= 5 for value in sums) / count if count else 0.0,
+            "sum_rate_high_tail_100": sum(value >= 22 for value in sums) / count if count else 0.0,
+            **{
+                f"sum_rate_{total:02d}_100": sums.count(total) / count if count else 0.0
+                for total in range(28)
+            },
+        }
+        for window in PROBABILITY_WINDOWS:
+            start = max(0, index - window)
+            count = index - start
+            frequencies = {
+                total: (prefix_counts[index][total] - prefix_counts[start][total]) / count if count else 1.0 / 28.0
+                for total in range(28)
+            }
+            features.update({f"sum_rate_{total:02d}_{window}": value for total, value in frequencies.items()})
+        cleaned.append({**row, "features": features})
+    return cleaned
+
+
+def _combo_issue_sort_key(row: dict[str, Any]) -> tuple[int, str, str]:
+    issue = str(row.get("issue", ""))
+    try:
+        return (0, f"{int(issue):020d}", str(row.get("time") or ""))
+    except ValueError:
+        return (1, issue, str(row.get("time") or ""))
+
+
 def _rows_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(payload.get("rows"), list):
         return payload["rows"]
@@ -136,6 +246,11 @@ def _rows_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
     feature = payload.get("feature")
     if isinstance(feature, dict):
+        # Combo settlement requires digits/sum.  The live API's pressure series
+        # intentionally only contains derived pressure fields, while
+        # recent_results contains the original draw records.
+        if isinstance(feature.get("recent_results"), list):
+            return feature["recent_results"]
         if isinstance(feature.get("pressure_series"), list):
             return [
                 {
@@ -145,9 +260,6 @@ def _rows_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 }
                 for point in feature["pressure_series"]
             ]
-        if isinstance(feature.get("recent_results"), list):
-            return feature["recent_results"]
-
     raise DataAdapterError("payload does not contain rows/history/data/feature pressure_series")
 
 

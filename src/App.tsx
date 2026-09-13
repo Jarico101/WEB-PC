@@ -12,6 +12,8 @@ import {
   Target,
   Zap
 } from "lucide-react";
+import registerBanner from "./assets/jincai-register-banner.jpg";
+import registerMobileBanner from "./assets/jincai-register-mobile-banner.jpg";
 
 type Draw = {
   issue: string;
@@ -111,6 +113,51 @@ type Pc28Payload = {
       };
     };
   };
+  dry_run_v1?: {
+    summary?: {
+      bets?: number;
+      wins?: number;
+      losses?: number;
+      win_rate?: number;
+      pnl?: number;
+      max_losing_streak?: number;
+    };
+  };
+};
+
+type ComboSelection = {
+  market: string;
+  market_type: "base" | "sum_exact" | "extreme";
+  role: string;
+  stake: number;
+  odds: number;
+  probability: number;
+};
+
+type ComboSignalPayload = {
+  ok?: boolean;
+  dry_run?: boolean;
+  issue?: string;
+  combo?: {
+    as_of_issue?: string;
+    decision?: {
+      mode: string;
+      selections: ComboSelection[];
+    };
+  };
+};
+
+type ComboMetricsPayload = {
+  ok?: boolean;
+  metrics?: {
+    settled_rounds: number;
+    executed_rounds: number;
+    shadow_rounds: number;
+    executed_net_profit: number;
+    shadow_net_profit: number;
+    balance: number | null;
+    max_drawdown: number;
+  };
 };
 
 type TrendPoint = {
@@ -120,9 +167,6 @@ type TrendPoint = {
   x: number;
   y: number;
   trendValue: number;
-  riskScore: number;
-  zoneKey: ZoneKey;
-  zoneLabel: string;
 };
 
 type ChartPointer = {
@@ -132,19 +176,9 @@ type ChartPointer = {
 
 type ZoneKey = "player" | "watch" | "risk";
 
-type ChartSignal = {
-  score: number;
-  zone: ReturnType<typeof pressureZone>;
-  latestRisk: number;
-  weightedRisk: number;
-  playerShare: number;
-  watchShare: number;
-  riskShare: number;
-};
-
-const DEFAULT_PC28_API_BASE = "https://api.startpops.xyz";
-const PC28_API_BASE = (import.meta.env.VITE_PC28_API_BASE || DEFAULT_PC28_API_BASE).replace(/\/+$/, "");
-const API_URL = `${PC28_API_BASE}/api/ai-signal`;
+const API_URL = (import.meta.env.VITE_PC28_API_URL || "/api/ai-signal").trim();
+const COMBO_SIGNAL_URL = (import.meta.env.VITE_PC28_COMBO_SIGNAL_URL || "/api/combo-signal").trim();
+const COMBO_METRICS_URL = (import.meta.env.VITE_PC28_COMBO_METRICS_URL || "/api/combo/metrics").trim();
 const REFRESH_MS = 10000;
 const CHART_HIT_LIFT = 17;
 const CHART_MISS_STEP = 1;
@@ -156,9 +190,18 @@ const CHART_HEIGHT = 400;
 const ACTUAL_RATE_WINDOWS = [1000, 800, 400];
 const CHART_MISS_COLOR = "#22d3ee";
 const CHART_HIT_COLOR = "#E54B4B";
+const REGISTER_URL = "https://t.me/jcyl888bot?start=199744";
 
 function formatPercent(value: number | undefined, digits = 1) {
   return `${(Number(value || 0) * 100).toFixed(digits)}%`;
+}
+
+function formatOptionalPercent(value: number | undefined, digits = 1) {
+  return typeof value === "number" && Number.isFinite(value) ? formatPercent(value, digits) : "等待数据";
+}
+
+function formatVirtualAmount(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "--";
 }
 
 function percentBarWidth(value: number | undefined) {
@@ -376,37 +419,7 @@ function forecastHelper(count?: number, observed?: number, fallback = "") {
   return fallback;
 }
 
-function calibratedRiskScore(
-  missValue: number,
-  currentMiss: number,
-  avgGap: number,
-  maxGap: number,
-  pressureScore: number,
-  conditionalProbability: number,
-  baseProbability: number
-) {
-  const rawFor = (value: number) => {
-    const avgRatio = avgGap > 0 ? value / avgGap : 0;
-    const maxRatio = maxGap > 0 ? value / maxGap : 0;
-    const conditionLift = baseProbability > 0 ? conditionalProbability / baseProbability : 1;
-    return avgRatio * 48 + maxRatio * 30 + clamp(conditionLift, 0.5, 1.8) * 12;
-  };
-  const currentRaw = rawFor(currentMiss);
-  const scale = currentRaw > 0 && pressureScore > 0 ? pressureScore / currentRaw : 1;
-  return Math.round(clamp(rawFor(missValue) * scale, 0, 100));
-}
-
-function buildTrend(
-  series: PressurePoint[],
-  context: {
-    currentMiss: number;
-    avgGap: number;
-    maxGap: number;
-    pressureScore: number;
-    conditionalProbability: number;
-    baseProbability: number;
-  }
-): TrendPoint[] {
+function buildTrend(series: PressurePoint[]): TrendPoint[] {
   let trendValue = 0;
   const raw = series.map((point) => {
     if (point.is_straight) {
@@ -418,15 +431,6 @@ function buildTrend(
       issue: point.issue,
       value: point.value,
       isStraight: point.is_straight,
-      riskScore: calibratedRiskScore(
-        point.value,
-        context.currentMiss,
-        context.avgGap,
-        context.maxGap,
-        context.pressureScore,
-        context.conditionalProbability,
-        context.baseProbability
-      ),
       trendValue,
       x: 0,
       y: 0
@@ -441,56 +445,11 @@ function buildTrend(
   const max = Math.max(...values, 8);
   const min = Math.min(...values, -8);
   const range = Math.max(1, max - min);
-
-  return raw.map((point, index) => {
-    const zone = pressureZone(point.riskScore);
-    return {
-      ...point,
-      zoneKey: zone.key,
-      zoneLabel: zone.label,
-      x: raw.length > 1 ? (index / (raw.length - 1)) * CHART_WIDTH : CHART_WIDTH / 2,
-      y: 20 + ((max - point.trendValue) / range) * (CHART_HEIGHT - 40)
-    };
-  });
-}
-
-function calculateChartSignal(points: TrendPoint[], latestPoint?: TrendPoint | null): ChartSignal {
-  if (!points.length) {
-    const zone = pressureZone(0);
-    return {
-      score: 0,
-      zone,
-      latestRisk: 0,
-      weightedRisk: 0,
-      playerShare: 0,
-      watchShare: 0,
-      riskShare: 0
-    };
-  }
-
-  const totals = points.reduce(
-    (acc, point, index) => {
-      const weight = 1 + (index / Math.max(1, points.length - 1)) * 1.8;
-      acc.weight += weight;
-      acc.weightedRisk += point.riskScore * weight;
-      acc[point.zoneKey] += 1;
-      return acc;
-    },
-    { weight: 0, weightedRisk: 0, player: 0, watch: 0, risk: 0 }
-  );
-  const latestRisk = latestPoint?.riskScore ?? points[points.length - 1].riskScore;
-  const weightedRisk = totals.weight ? totals.weightedRisk / totals.weight : latestRisk;
-  const score = Math.round(clamp(latestRisk * 0.68 + weightedRisk * 0.32, 0, 100));
-
-  return {
-    score,
-    zone: pressureZone(score),
-    latestRisk,
-    weightedRisk,
-    playerShare: totals.player / points.length,
-    watchShare: totals.watch / points.length,
-    riskShare: totals.risk / points.length
-  };
+  return raw.map((point, index) => ({
+    ...point,
+    x: raw.length > 1 ? (index / (raw.length - 1)) * CHART_WIDTH : CHART_WIDTH / 2,
+    y: 20 + ((max - point.trendValue) / range) * (CHART_HEIGHT - 40)
+  }));
 }
 
 function MetricCard({
@@ -689,8 +648,67 @@ function PressureGauge({
   );
 }
 
+function ComboSimulationPanel({
+  signal,
+  metrics,
+  unavailable
+}: {
+  signal: ComboSignalPayload | null;
+  metrics: ComboMetricsPayload | null;
+  unavailable: boolean;
+}) {
+  const decision = signal?.combo?.decision;
+  const selections = decision?.selections || [];
+  const isShadow = decision?.mode === "shadow";
+
+  return (
+    <div className="insight-card bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
+      <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
+        <span className="text-xs font-bold uppercase tracking-wider text-white font-sans flex items-center gap-1.5">
+          <ShieldAlert className="w-4 h-4 text-cyan-300" />
+          组合模拟 COMBO SIMULATION
+        </span>
+        <span className={`text-[9px] font-bold border px-1.5 py-0.5 rounded-sm ${isShadow ? "text-amber-300 border-amber-300/30" : "text-cyan-300 border-cyan-300/30"}`}>
+          {unavailable ? "OFFLINE" : isShadow ? "SHADOW" : "VIRTUAL"}
+        </span>
+      </div>
+
+      {unavailable ? (
+        <div className="text-xs text-zinc-500 font-mono py-4">组合模拟服务未连接</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="robot-stat-cell"><span>目标期号</span><strong>{signal?.issue || "--"}</strong><em>as-of {signal?.combo?.as_of_issue || "--"}</em></div>
+            <div className="robot-stat-cell"><span>模拟余额</span><strong>{formatVirtualAmount(metrics?.metrics?.balance)}</strong><em>virtual only</em></div>
+            <div className="robot-stat-cell"><span>最大回撤</span><strong>{formatOptionalPercent(metrics?.metrics?.max_drawdown)}</strong><em>{metrics?.metrics?.settled_rounds || 0} settled</em></div>
+          </div>
+          <div className="space-y-1.5">
+            {selections.map((selection) => (
+              <div key={selection.market} className="flex items-center gap-2 border border-[#181818] bg-[#070707] px-2.5 py-2 text-[10px] font-mono">
+                <span className={`w-1.5 h-1.5 shrink-0 ${selection.market_type === "base" ? "bg-cyan-300" : "bg-amber-300"}`} />
+                <strong className="text-zinc-200 min-w-0 flex-1 truncate">{selection.market}</strong>
+                <span className="text-zinc-500">{selection.role}</span>
+                <span className="text-zinc-400">p {formatPercent(selection.probability)}</span>
+                <span className="text-zinc-300">x{selection.odds}</span>
+                <span className="text-white">{formatVirtualAmount(selection.stake)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] text-zinc-500 font-mono border-t border-[#1a1a1a] pt-2.5">
+            <span>执行净值 {formatVirtualAmount(metrics?.metrics?.executed_net_profit)}</span>
+            <span className="text-right">影子净值 {formatVirtualAmount(metrics?.metrics?.shadow_net_profit)}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [payload, setPayload] = useState<Pc28Payload | null>(null);
+  const [comboSignal, setComboSignal] = useState<ComboSignalPayload | null>(null);
+  const [comboMetrics, setComboMetrics] = useState<ComboMetricsPayload | null>(null);
+  const [comboUnavailable, setComboUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomRange, setZoomRange] = useState(1000);
@@ -720,9 +738,36 @@ export default function App() {
     }
   };
 
+  const loadComboSimulation = async () => {
+    try {
+      const [signalResponse, metricsResponse] = await Promise.all([
+        fetch(COMBO_SIGNAL_URL, { cache: "no-store" }),
+        fetch(COMBO_METRICS_URL, { cache: "no-store" })
+      ]);
+      if (!signalResponse.ok || !metricsResponse.ok) {
+        setComboUnavailable(true);
+        return;
+      }
+      const [nextSignal, nextMetrics] = await Promise.all([signalResponse.json(), metricsResponse.json()]);
+      if (!nextSignal?.combo?.decision || !nextMetrics?.metrics) {
+        setComboUnavailable(true);
+        return;
+      }
+      setComboSignal(nextSignal);
+      setComboMetrics(nextMetrics);
+      setComboUnavailable(false);
+    } catch {
+      setComboUnavailable(true);
+    }
+  };
+
   useEffect(() => {
     loadSignal();
-    const timer = window.setInterval(loadSignal, REFRESH_MS);
+    loadComboSimulation();
+    const timer = window.setInterval(() => {
+      loadSignal();
+      loadComboSimulation();
+    }, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -749,17 +794,25 @@ export default function App() {
   const latest = feature?.latest;
   const signal = payload?.signal;
   const prediction = payload?.prediction;
+  const dryRun = payload?.dry_run_v1;
   const historyCount = feature?.history_count || payload?.fetched_count || 0;
   const currentMiss = feature?.pressure.current_non_straight_streak || 0;
   const avgGap = feature?.pressure.avg_non_straight_gap || 0;
   const maxGap = feature?.pressure.max_non_straight_gap || 0;
   const pressureScore = signal?.risk_score || 0;
   const theoreticalMiss = feature?.probability.straight_probability
-    ? (1 / feature.probability.straight_probability).toFixed(1)
+    ? ((1 - feature.probability.straight_probability) / feature.probability.straight_probability).toFixed(1)
     : "--";
   const conditional = feature?.conditional_probability;
   const zone = pressureZone(pressureScore);
-  const robotBias = prediction?.next_judgment?.label || "--";
+  const robotBias = prediction?.next_judgment?.label || "等待数据";
+  const robotHitRate = prediction?.next_judgment?.hit_rate;
+  const robotHitCount = prediction?.next_judgment?.hit_count;
+  const robotSampleSize = prediction?.next_judgment?.sample_size;
+  const robotStraightRate = prediction?.targets?.straight?.backtest_next_hit_rate;
+  const robotNonStraightRate = prediction?.targets?.non_straight?.backtest_next_hit_rate;
+  const dryRunWinRate = dryRun?.summary?.win_rate;
+  const signalConfidence = signal?.confidence;
   const pressureRatioAvg = feature?.pressure.pressure_ratio_to_avg || 0;
   const pressureRatioMax = feature?.pressure.pressure_ratio_to_max || 0;
   const pressureAlgorithm = [
@@ -783,27 +836,23 @@ export default function App() {
   const conditionalStraightProbability = conditional?.straight_probability || 0;
   const aftershock = feature?.aftershock;
   const historySampleSize = feature?.pressure_series?.length || historyCount;
-  const straightForecastBase =
-    prediction?.targets?.straight?.backtest_next_hit_rate ??
-    conditional?.straight_probability ??
-    baseStraightProbability;
   const forecastProbabilities = [
     {
-      label: "下一期",
-      value: aftershock?.next_1_rate ?? straightForecastBase,
-      helper: forecastHelper(aftershock?.next_1_straight_count, aftershock?.next_1_observed, "机器人顺单期率"),
+      label: "当前遗漏后下期",
+      value: conditionalStraightProbability || baseStraightProbability,
+      helper: forecastHelper(conditional?.straight_count, conditional?.observed, "条件样本不足时使用理论概率"),
       emphasis: false
     },
     {
-      label: "下3期出顺",
-      value: aftershock?.next_3_rate ?? compoundStraightProbability(straightForecastBase, 3),
-      helper: forecastHelper(aftershock?.next_3_straight_count, aftershock?.next_3_observed, `至少一次 / 单期 ${formatPercent(straightForecastBase)}`),
+      label: "出顺后3期历史率",
+      value: aftershock?.next_3_rate ?? compoundStraightProbability(baseStraightProbability, 3),
+      helper: forecastHelper(aftershock?.next_3_straight_count, aftershock?.next_3_observed, `至少一次 / 单期 ${formatPercent(baseStraightProbability)}`),
       emphasis: true
     },
     {
-      label: "下5期出顺",
-      value: aftershock?.next_5_rate ?? compoundStraightProbability(straightForecastBase, 5),
-      helper: forecastHelper(aftershock?.next_5_straight_count, aftershock?.next_5_observed, `至少一次 / 单期 ${formatPercent(straightForecastBase)}`),
+      label: "出顺后5期历史率",
+      value: aftershock?.next_5_rate ?? compoundStraightProbability(baseStraightProbability, 5),
+      helper: forecastHelper(aftershock?.next_5_straight_count, aftershock?.next_5_observed, `至少一次 / 单期 ${formatPercent(baseStraightProbability)}`),
       emphasis: true
     }
   ];
@@ -851,14 +900,7 @@ export default function App() {
     const start = Math.max(0, end - safeZoom);
     const visible = series.slice(start, end);
     return {
-      points: buildTrend(visible, {
-        currentMiss,
-        avgGap,
-        maxGap,
-        pressureScore,
-        conditionalProbability: conditionalStraightProbability,
-        baseProbability: baseStraightProbability
-      }),
+      points: buildTrend(visible),
       start,
       end,
       visibleRange: safeZoom,
@@ -868,12 +910,7 @@ export default function App() {
     feature?.pressure_series,
     zoomRange,
     viewEndIndex,
-    currentMiss,
-    avgGap,
-    maxGap,
-    pressureScore,
-    conditionalStraightProbability,
-    baseStraightProbability
+    currentMiss
   ]);
 
   const pathD = pageData.points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
@@ -884,13 +921,6 @@ export default function App() {
   }));
   const missPoints = pageData.points.filter((point) => !point.isStraight);
   const hitPoints = pageData.points.filter((point) => point.isStraight);
-  const latestTrendPoint = pageData.points[pageData.points.length - 1];
-  const zoneCounts = pageData.points.reduce<Record<ZoneKey, number>>((counts, point) => {
-    counts[point.zoneKey] += 1;
-    return counts;
-  }, { player: 0, watch: 0, risk: 0 });
-  const chartSignal = calculateChartSignal(pageData.points, latestTrendPoint);
-  const chartZone = chartSignal.zone;
   const isAtLatest = !feature?.pressure_series?.length || pageData.end >= feature.pressure_series.length;
 
   const setChartWindow = (targetRange: number, anchorRatio = 1) => {
@@ -1100,6 +1130,25 @@ export default function App() {
           </div>
         </header>
 
+        <a
+          href={REGISTER_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="register-banner block overflow-hidden rounded-sm border border-[#2a1608] bg-[#0a0a0a] transition hover:border-[#f6c64f]/80 focus:outline-none focus:ring-2 focus:ring-[#f6c64f]/70"
+          aria-label="点击注册金财集团"
+        >
+          <picture>
+            <source media="(max-width: 640px)" srcSet={registerMobileBanner} />
+            <img
+              src={registerBanner}
+              alt="金财集团 TG 小程序一键注册"
+              className="block w-full h-24 object-cover"
+              loading="eager"
+              decoding="async"
+            />
+          </picture>
+        </a>
+
         {error ? (
           <div className="bg-[#E54B4B]/10 border border-[#E54B4B]/30 text-[#ffb4ab] px-4 py-3 text-xs rounded-sm">
             PC28 API LINK ERROR: {error}
@@ -1110,9 +1159,9 @@ export default function App() {
           <MetricCard label="历史最大遗漏" value={maxGap} suffix="期" footer="历史最长未出顺区间" hot={currentMiss >= maxGap * 0.8 && maxGap > 0} />
           <MetricCard label="当前遗漏" value={currentMiss} suffix="期" footer={`平均 ${avgGap.toFixed(1)} / 最大 ${maxGap}`} hot={currentMiss >= avgGap && avgGap > 0} />
           <MetricCard label="当前连续未出" value={currentMiss} suffix="期" footer={eventText(latest)} hot={signal?.next_signal === "red"} />
-          <MetricCard label="理论遗漏" value={theoreticalMiss} suffix="期" footer={`顺子理论概率 ${formatPercent(feature?.probability.straight_probability)}`} />
-          <MetricCard label="条件出顺率" value={formatPercent(conditional?.straight_probability)} footer={`${conditional?.straight_count || 0}/${conditional?.observed || 0} 样本`} />
-          <MetricCard label="历史平均间隔" value={avgGap.toFixed(1)} suffix="期" footer={`完整历史口径 ${historyCount} 期`} />
+          <MetricCard label="理论遗漏" value={theoreticalMiss} suffix="期" footer={`未出期望 / 顺子概率 ${formatPercent(feature?.probability.straight_probability)}`} />
+          <MetricCard label="条件出顺率" value={formatPercent(conditional?.straight_probability)} footer={`${conditional?.straight_count || 0}/${conditional?.observed || 0} 条件样本`} />
+          <MetricCard label="平均未出段" value={avgGap.toFixed(1)} suffix="期" footer={`全历史含当前 ${historyCount} 期`} />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
@@ -1203,11 +1252,9 @@ export default function App() {
                   <span className="text-[#666]">
                     {pageData.totalCount ? `${pageData.start + 1}-${pageData.end} / ${pageData.totalCount}` : "0 / 0"}
                   </span>
-                  {pageData.points.length ? (
-                    <span className={`border px-1.5 py-0.5 rounded-sm font-bold ${zoneBgClass(chartZone.key)} ${zoneTextClass(chartZone.key)}`}>
-                      图表信号 {chartZone.label} / {chartSignal.score}
-                    </span>
-                  ) : null}
+                  <span className={`border px-1.5 py-0.5 rounded-sm font-bold ${zoneBgClass(zone.key)} ${zoneTextClass(zone.key)}`}>
+                    当前压力 {zone.label} / {pressureScore}
+                  </span>
                   <span className="text-[10px] text-[#666]">
                     滚轮缩放 / 拖动平移 / 双指缩放
                   </span>
@@ -1233,29 +1280,29 @@ export default function App() {
                     y="0"
                     width="1200"
                     height={CHART_HEIGHT}
-                    fill={zoneFill(chartZone.key)}
-                    opacity="0.08"
+                    fill="#ffffff"
+                    opacity="0.025"
                   />
                   <line
                     x1="0"
                     y1="38"
                     x2="1200"
                     y2="38"
-                    stroke={zoneFill(chartZone.key)}
-                    strokeOpacity="0.32"
+                    stroke="#ffffff"
+                    strokeOpacity="0.14"
                     strokeDasharray="7 9"
                   />
                   <text
                     x="24"
                     y="27"
                     textAnchor="start"
-                    fill={zoneFill(chartZone.key)}
+                    fill="#aaaaaa"
                     opacity="0.74"
                     fontSize="15"
                     fontFamily="JetBrains Mono, monospace"
                     fontWeight="700"
                   >
-                    {chartZone.label} SIGNAL / 最新{chartSignal.latestRisk} 加权{chartSignal.weightedRisk.toFixed(1)}
+                    遗漏走势 / 当前 {currentMiss}期 / 压力 {pressureScore}
                   </text>
                   {[40, 100, 160, 220].map((y) => (
                     <line key={y} x1="0" y1={y} x2="1200" y2={y} stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
@@ -1345,7 +1392,7 @@ export default function App() {
 
                 {hovered ? (
                   <div
-                    className="absolute bg-[#0a0a0a] text-xs p-3 rounded-sm border border-[#1a1a1a] shadow-2xl text-white space-y-1.5 z-30 pointer-events-none"
+                    className="chart-tooltip absolute bg-[#0a0a0a] text-xs p-3 rounded-sm border border-[#1a1a1a] shadow-2xl text-white space-y-1.5 z-30 pointer-events-none"
                     style={{ left: `${Math.min((hovered.x / 1200) * 100, 72)}%`, top: `${Math.min(hovered.y + 18, 210)}px` }}
                   >
                     <div className="font-bold border-b border-[#222] pb-1.5 flex justify-between gap-6">
@@ -1361,10 +1408,6 @@ export default function App() {
                     <div className="flex justify-between text-[10px] gap-5">
                       <span className="text-[#888]">MISS:</span>
                       <span className="text-white">{hovered.value}期</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] gap-5">
-                      <span className="text-[#888]">ZONE:</span>
-                      <span className={`${zoneTextClass(hovered.zoneKey)} font-bold`}>{hovered.zoneLabel} / {hovered.riskScore}</span>
                     </div>
                   </div>
                 ) : null}
@@ -1422,7 +1465,7 @@ export default function App() {
               </div>
 
               <div className="pressure-note text-[10px] text-[#777] font-mono border-t border-[#1a1a1a] pt-3 leading-relaxed">
-                压力分只读取当前遗漏、历史平均间隔、历史最大遗漏、条件出顺率；走势图逐点背景沿用同一压力口径。
+                压力分按当前遗漏相对平均未出段与最大未出段的比值计算；条件出顺率仅作历史对照。走势图只显示遗漏变化，不表示历史压力评分。
               </div>
             </div>
           </div>
@@ -1462,7 +1505,7 @@ export default function App() {
                 ))}
               </div>
               <div className="text-zinc-500">
-                走势图背景按当前窗口聚合计算，只显示主信号色；窗口内分布：玩家优势 {zoneCounts.player} / 临界观察 {zoneCounts.watch} / 风险 {zoneCounts.risk}。
+                当前遗漏后的单期数据使用条件样本；“出顺后”数据为全历史事件频率，不构成下一期预测。
               </div>
             </div>
           </div>
@@ -1480,18 +1523,28 @@ export default function App() {
 
             <div className="robot-signal-shell">
               <div className={`robot-data-strip robot-data-strip-strong ${robotBiasBgClass(robotBias)}`}>
-                <span>RAW JUDGMENT</span>
+                <span>当前类别</span>
                 <strong className={robotBiasClass(robotBias)}>{robotBias}</strong>
-                <em>score {prediction?.next_judgment?.score ?? "--"}</em>
+                <em>历史命中 {formatOptionalPercent(robotHitRate)}</em>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <div className="robot-stat-cell col-span-2 sm:col-span-1">
-                  <span>回测命中</span>
-                  <strong>{formatPercent(prediction?.next_judgment?.hit_rate)}</strong>
-                  <em>{prediction?.next_judgment?.hit_count || 0}/{prediction?.next_judgment?.sample_size || 0} samples</em>
+                <div className="robot-stat-cell">
+                  <span>BOT胜率</span>
+                  <strong>{formatOptionalPercent(robotHitRate)}</strong>
+                  <em>{robotHitCount ?? "等待数据"}/{robotSampleSize ?? "等待数据"} samples</em>
                 </div>
-                <div className={`robot-stat-cell col-span-2 sm:col-span-1 ${zoneBgClass(zone.key)}`}>
+                <div className="robot-stat-cell">
+                  <span>Dry-run 胜率</span>
+                  <strong>{formatOptionalPercent(dryRunWinRate)}</strong>
+                  <em>{dryRun?.summary ? `${dryRun.summary.wins ?? 0}/${dryRun.summary.bets ?? 0} bets` : "等待数据"}</em>
+                </div>
+                <div className="robot-stat-cell">
+                  <span>本期信心</span>
+                  <strong>{formatOptionalPercent(signalConfidence)}</strong>
+                  <em>signal confidence</em>
+                </div>
+                <div className={`robot-stat-cell ${zoneBgClass(zone.key)}`}>
                   <span>风险信号</span>
                   <strong className={zoneTextClass(zone.key)}>{signal?.signal_label || "--"}</strong>
                   <em>{pressureScore}/100 pressure</em>
@@ -1505,15 +1558,15 @@ export default function App() {
                       <Target className="w-3.5 h-3.5" />
                       机器人顺
                     </span>
-                    <strong>{formatPercent(prediction?.targets?.straight?.backtest_next_hit_rate)}</strong>
+                    <strong>{formatOptionalPercent(robotStraightRate)}</strong>
                   </div>
                   <div className="robot-meter">
-                    <span style={{ width: `${Math.min(100, Number(prediction?.targets?.straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
+                    <span style={{ width: percentBarWidth(robotStraightRate) }} />
                   </div>
                   <div className="robot-target-meta">
-                    score {prediction?.targets?.straight?.score ?? "--"} / sample {prediction?.targets?.straight?.sample_size ?? "--"}
+                    历史命中 {formatOptionalPercent(robotStraightRate)} / 样本 {prediction?.targets?.straight?.sample_size ?? "等待数据"}
                   </div>
-                  <p>{prediction?.targets?.straight?.reason || "--"}</p>
+                  <p>{prediction?.targets?.straight?.reason || "等待数据"}</p>
                 </div>
 
                 <div className="robot-target-card robot-target-non-straight">
@@ -1522,15 +1575,15 @@ export default function App() {
                       <Target className="w-3.5 h-3.5" />
                       机器人非顺
                     </span>
-                    <strong>{formatPercent(prediction?.targets?.non_straight?.backtest_next_hit_rate)}</strong>
+                    <strong>{formatOptionalPercent(robotNonStraightRate)}</strong>
                   </div>
                   <div className="robot-meter">
-                    <span style={{ width: `${Math.min(100, Number(prediction?.targets?.non_straight?.backtest_next_hit_rate || 0) * 100)}%` }} />
+                    <span style={{ width: percentBarWidth(robotNonStraightRate) }} />
                   </div>
                   <div className="robot-target-meta">
-                    score {prediction?.targets?.non_straight?.score ?? "--"} / sample {prediction?.targets?.non_straight?.sample_size ?? "--"}
+                    历史命中 {formatOptionalPercent(robotNonStraightRate)} / 样本 {prediction?.targets?.non_straight?.sample_size ?? "等待数据"}
                   </div>
-                  <p>{prediction?.targets?.non_straight?.reason || "--"}</p>
+                  <p>{prediction?.targets?.non_straight?.reason || "等待数据"}</p>
                 </div>
               </div>
 
@@ -1541,13 +1594,20 @@ export default function App() {
               </div>
 
               <div className="robot-raw-block">
-                <div className="text-white font-sans font-bold uppercase tracking-wider mb-1">原始机器人数据 RAW BOT DATA</div>
-                <div>偏向 {robotBias} / 原始分数 {prediction?.next_judgment?.score ?? "--"} / 命中 {prediction?.next_judgment?.hit_count || 0}/{prediction?.next_judgment?.sample_size || 0} / 回测 {formatPercent(prediction?.next_judgment?.hit_rate)}</div>
-                <div>顺 score {prediction?.targets?.straight?.score ?? "--"} sample {prediction?.targets?.straight?.sample_size ?? "--"} hit {formatPercent(prediction?.targets?.straight?.backtest_next_hit_rate)}</div>
-                <div>非顺 score {prediction?.targets?.non_straight?.score ?? "--"} sample {prediction?.targets?.non_straight?.sample_size ?? "--"} hit {formatPercent(prediction?.targets?.non_straight?.backtest_next_hit_rate)}</div>
+                <div className="text-white font-sans font-bold uppercase tracking-wider mb-1">机器人回放数据 BOT BACKTEST DATA</div>
+                <div>当前类别 {robotBias} / 历史命中 {robotHitCount ?? "等待数据"}/{robotSampleSize ?? "等待数据"} / 命中率 {formatOptionalPercent(robotHitRate)}</div>
+                <div>dry-run 胜率 {formatOptionalPercent(dryRunWinRate)} / bets {dryRun?.summary?.bets ?? "等待数据"} / pnl {dryRun?.summary?.pnl ?? "等待数据"}</div>
+                <div>顺 历史命中 {formatOptionalPercent(robotStraightRate)} / 样本 {prediction?.targets?.straight?.sample_size ?? "等待数据"}</div>
+                <div>非顺 历史命中 {formatOptionalPercent(robotNonStraightRate)} / 样本 {prediction?.targets?.non_straight?.sample_size ?? "等待数据"}</div>
               </div>
             </div>
           </div>
+
+          <ComboSimulationPanel
+            signal={comboSignal}
+            metrics={comboMetrics}
+            unavailable={comboUnavailable}
+          />
 
           <div className="insight-card insight-stats bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm p-4 space-y-3">
             <div className="flex justify-between items-center border-b border-[#1a1a1a] pb-2.5">
@@ -1556,7 +1616,7 @@ export default function App() {
                 统计分析 STATS ANALYSIS
               </span>
               <span className="text-[9px] text-[#888] font-sans uppercase tracking-wider">
-                {historySampleSize || 0} samples
+                全历史 {historyCount || 0} / 走势 {historySampleSize || 0}
               </span>
             </div>
 

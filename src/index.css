@@ -34,6 +34,10 @@ body {
   overflow-x: hidden;
 }
 
+#root {
+  min-width: 0;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -938,6 +942,13 @@ body {
 
   .chart-stage-wrap svg text {
     display: none;
+  }
+
+  .chart-tooltip {
+    bottom: 10px;
+    left: 10px !important;
+    right: 10px;
+    top: auto !important;
   }
 
   .robot-signal-shell {

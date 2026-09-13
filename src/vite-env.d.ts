@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_PC28_API_BASE?: string;
+  readonly VITE_PC28_API_URL?: string;
 }
 
 interface ImportMeta {
