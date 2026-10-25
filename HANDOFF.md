@@ -190,3 +190,16 @@ git diff --check
 - 13/14 实际订单 40 单、合计盈亏 `-$3,000.00`；报告：`ai_agent/logs/experimental_1314_hedged_train16_500.json`。
 
 取消和值的同窗口复跑：`ai_agent/logs/experimental_1314_hedged_no_sums_train16_500.json`。处理 425 期、实际 284 单、正收益 165 单（胜率 `58.10%`）、最终 `$7,972.00`、盈亏 `-$2,028.00`、最大回撤 `24.11%`；第 425 期触发 20% 止损。13/14 实际 49 单，每单 `-$60.00`，合计 `-$2,940.00`。胜率提升不代表盈利，仍为隔离实验。
+
+## 2026-10-25 VPS 恢复完成
+
+- 新 VPS `45.205.22.131`：Ubuntu 24.04、2 vCPU、约 2 GB RAM、29 GB SSD。
+- `api.startpops.xyz` A 记录已切换到新 IP；HTTPS 证书有效期至 2027-01-23。
+- 后端 `/opt/pc28-ai-board` 已启动：`pc28-api.service`、`pc28-refresh-worker.service`、Nginx，均 enabled/active。
+- 采集 worker 每 15 秒运行；最近日志连续 `ok:true`、`missing:0`，最新期号已从 3498416 更新到 3498417。
+- API `https://api.startpops.xyz/api/health` 返回 200，`history_count` 60811；`/api/ai-signal` 返回 200、`data_integrity:true`。
+- Vercel `https://pc28.startpops.xyz/` 浏览器实测能通过同源 API 显示最新期号和 60812 期全历史。
+- 恢复历史候选共 60811 期，无重复；165 个缺号全部匹配既有跳期/已知缺失规则。
+- 备份：服务器 `/var/backups/pc28/recovered-history-20261025.tgz`，本地 `.pc28-recovery/recovered-history-20261025.tgz`。
+- SSH 临时端口 2222 已启动，22 仍保留；密码曾在对话中明文发送，必须尽快重置并改用 SSH 密钥。
+- 组合模拟服务仍未部署，前端显示 `OFFLINE`，不得伪造结果。
