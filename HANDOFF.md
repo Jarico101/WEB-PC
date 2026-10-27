@@ -210,4 +210,4 @@ git diff --check
 - 最近 500 期，每页 20 期，上一页/下一页及页码跳转；数据不足时按实际数量显示。
 - VPS `/opt/pc28-ai-board/config.json` displayLimit 已由 50 改为 500，重启 pc28-api，公网接口确认返回 500 条。
 - `npm run lint`、`npm run build` 通过；本地浏览器连接真实 API，验证分类、翻页、末页 20 条/下一页禁用。
-- 前端尚未发布：Vercel CLI token 已失效，等待用户执行 vercel login。不能声称线上前端已更新。
+- 前端已发布：Vercel 登录恢复，生产部署 dpl_8FhHjKVTHtREu7171SvfE5hSiHVn 已绑定 https://pc28.startpops.xyz。线上浏览器实测 API 200、500 条，状态显示大小单双组合，第 25 页 20 条且下一页禁用。
