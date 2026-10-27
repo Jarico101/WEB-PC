@@ -203,3 +203,11 @@ git diff --check
 - 备份：服务器 `/var/backups/pc28/recovered-history-20261025.tgz`，本地 `.pc28-recovery/recovered-history-20261025.tgz`。
 - SSH 临时端口 2222 已启动，22 仍保留；密码曾在对话中明文发送，必须尽快重置并改用 SSH 密钥。
 - 组合模拟服务仍未部署，前端显示 `OFFLINE`，不得伪造结果。
+
+## 2026-10-27 历史开奖分类与分页
+
+- 历史状态改为和值组合：0–13 小、14–27 大，奇数单、偶数双；桌面与手机一致。
+- 最近 500 期，每页 20 期，上一页/下一页及页码跳转；数据不足时按实际数量显示。
+- VPS `/opt/pc28-ai-board/config.json` displayLimit 已由 50 改为 500，重启 pc28-api，公网接口确认返回 500 条。
+- `npm run lint`、`npm run build` 通过；本地浏览器连接真实 API，验证分类、翻页、末页 20 条/下一页禁用。
+- 前端尚未发布：Vercel CLI token 已失效，等待用户执行 vercel login。不能声称线上前端已更新。

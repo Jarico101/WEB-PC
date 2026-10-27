@@ -484,12 +484,22 @@ function MetricCard({
   );
 }
 
-function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number }) {
+function historyCategory(sum: number) {
+  return `${sum >= 14 ? "大" : "小"}${sum % 2 === 0 ? "双" : "单"}`;
+}
+
+function HistoryTable({ results }: { results: Draw[] }) {
+  const [page, setPage] = useState(1);
+  const history = results.slice(0, 500);
+  const totalPages = Math.max(1, Math.ceil(history.length / 20));
+  const currentPage = Math.min(page, totalPages);
+  const pageResults = history.slice((currentPage - 1) * 20, currentPage * 20);
+  useEffect(() => setPage((previous) => Math.min(previous, totalPages)), [totalPages]);
   return (
     <div className="history-shell bg-[#0a0a0a] border border-[#1a1a1a] rounded-sm overflow-hidden">
       <div className="bg-[#0f0f0f] border-b border-[#1a1a1a] px-4 py-2.5 flex justify-between items-center">
         <span className="text-xs font-bold uppercase tracking-wider text-white font-sans">历史开奖 HISTORY</span>
-        <span className="text-[10px] text-[#888]">最近 {limit} 期</span>
+        <span className="text-[10px] text-[#888]">最近 {history.length} 期</span>
       </div>
       <div className="history-table-view overflow-x-auto text-xs select-none">
         <table className="w-full min-w-[680px] text-left">
@@ -501,7 +511,7 @@ function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number
             </tr>
           </thead>
           <tbody className="divide-y divide-[#1a1a1a]">
-            {results.slice(0, limit).map((item, index) => (
+            {pageResults.map((item, index) => (
               <tr key={item.issue} className={`${index % 2 === 0 ? "bg-[#0a0a0a]" : "bg-[#070707]"} hover:bg-[#151515]`}>
                 <td className="p-2 pl-4 font-mono text-white text-[11px]">{formatIssue(item.issue)}</td>
                 <td className="p-2">
@@ -511,11 +521,7 @@ function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number
                   </div>
                 </td>
                 <td className="p-2 pr-4 text-right font-mono">
-                  {item.is_straight ? (
-                    <span className="bg-[#E54B4B]/10 text-[#ffb4ab] border border-[#E54B4B]/20 px-1.5 py-0.5 rounded-sm text-[10px] font-bold">出顺</span>
-                  ) : (
-                    <span className="text-zinc-600 text-[10px]">未出</span>
-                  )}
+                  <span className="text-amber-300 text-[11px] font-bold">{historyCategory(item.sum)}</span>
                 </td>
               </tr>
             ))}
@@ -523,11 +529,11 @@ function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number
         </table>
       </div>
       <div className="history-mobile-list">
-        {results.slice(0, limit).map((item) => (
+        {pageResults.map((item) => (
           <div key={item.issue} className="history-mobile-item">
             <div className="history-mobile-head">
               <span>{formatIssue(item.issue)}</span>
-              {item.is_straight ? <strong>出顺</strong> : <em>未出</em>}
+              <span className="!text-amber-300 font-bold">{historyCategory(item.sum)}</span>
             </div>
             <div className="history-mobile-draw">
               <DrawDigits draw={item} compact />
@@ -536,6 +542,16 @@ function HistoryTable({ results, limit = 20 }: { results: Draw[]; limit?: number
           </div>
         ))}
       </div>
+      <nav aria-label="历史开奖分页" className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1a1a1a] px-4 py-3 text-xs text-[#aaa]">
+        <span>第 {currentPage} / {totalPages} 页 · 共 {history.length} 期</span>
+        <div className="flex items-center gap-3">
+          <button type="button" aria-label="历史开奖上一页" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="min-h-10 px-3 border border-[#333] rounded disabled:opacity-30">上一页</button>
+          <label>跳至 <select aria-label="历史开奖页码" value={currentPage} onChange={(event) => setPage(Number(event.target.value))} className="min-h-10 bg-[#151515] border border-[#333] rounded px-2 text-white">
+            {Array.from({ length: totalPages }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+          </select> 页</label>
+          <button type="button" aria-label="历史开奖下一页" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} className="min-h-10 px-3 border border-[#333] rounded disabled:opacity-30">下一页</button>
+        </div>
+      </nav>
     </div>
   );
 }
